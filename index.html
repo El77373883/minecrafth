@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Mi Clon de Minecraft</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        #instrucciones {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            font-family: sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="instrucciones">WASD para mover | Click para eliminar bloques | Click en pantalla para empezar</div>
+
+    <script type="module">
+        import * as THREE from 'https://cdn.skypack.dev/three@0.132.2';
+        import { PointerLockControls } from 'https://cdn.skypack.dev/three@0.132.2/examples/jsm/controls/PointerLockControls.js';
+
+        // 1. CONFIGURACIÓN BÁSICA
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); // Color cielo
+        
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // 2. LUCES
+        const light = new THREE.HemisphereLight(0xeeeeee, 0x888888, 1);
+        scene.add(light);
+
+        // 3. CONTROLES DE MOVIMIENTO
+        const controls = new PointerLockControls(camera, document.body);
+        document.body.addEventListener('click', () => controls.lock());
+
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        const onKeyDown = (e) => {
+            if (e.code === 'KeyW') moveForward = true;
+            if (e.code === 'KeyS') moveBackward = true;
+            if (e.code === 'KeyA') moveLeft = true;
+            if (e.code === 'KeyD') moveRight = true;
+        };
+        const onKeyUp = (e) => {
+            if (e.code === 'KeyW') moveForward = false;
+            if (e.code === 'KeyS') moveBackward = false;
+            if (e.code === 'KeyA') moveLeft = false;
+            if (e.code === 'KeyD') moveRight = false;
+        };
+        document.addEventListener('keydown', onKeyDown);
+        document.addEventListener('keyup', onKeyUp);
+
+        // 4. GENERACIÓN DEL TERRENO (BLOQUES)
+        const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
+        const material = new THREE.MeshLambertMaterial({ color: 0x44aa44 }); // Verde pasto
+
+        for (let x = -10; x < 10; x++) {
+            for (let z = -10; z < 10; z++) {
+                const mesh = new THREE.Mesh(boxGeometry, material);
+                mesh.position.set(x, 0, z);
+                scene.add(mesh);
+            }
+        }
+
+        camera.position.y = 2; // Altura de los ojos
+
+        // 5. SISTEMA DE MINADO (RAYCASTER)
+        const raycaster = new THREE.Raycaster();
+        document.addEventListener('mousedown', (event) => {
+            if (controls.isLocked) {
+                raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+                const intersects = raycaster.intersectObjects(scene.children);
+                if (intersects.length > 0) {
+                    const object = intersects[0].object;
+                    scene.remove(object); // "Elimina" el bloque
+                }
+            }
+        });
+
+        // 6. BUCLE DE ANIMACIÓN
+        const velocity = new THREE.Vector3();
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (controls.isLocked) {
+                const delta = 0.1;
+                velocity.x -= velocity.x * 10.0 * delta;
+                velocity.z -= velocity.z * 10.0 * delta;
+
+                if (moveForward) velocity.z -= 40.0 * delta;
+                if (moveBackward) velocity.z += 40.0 * delta;
+                if (moveLeft) velocity.x -= 40.0 * delta;
+                if (moveRight) velocity.x += 40.0 * delta;
+
+                controls.moveRight(-velocity.x * delta);
+                controls.moveForward(-velocity.z * delta);
+            }
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>
