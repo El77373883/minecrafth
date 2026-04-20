@@ -3,31 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Minecraft Mobile</title>
+    <title>Minecraft Mobile v2</title>
     <style>
-        body { margin: 0; overflow: hidden; touch-action: none; background: #87CEEB; }
+        body { margin: 0; overflow: hidden; touch-action: none; background: #87CEEB; font-family: sans-serif; }
         #controles-movil {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            display: grid;
-            grid-template-columns: repeat(3, 50px);
-            grid-template-rows: repeat(2, 50px);
-            gap: 5px;
+            position: absolute; bottom: 30px; left: 30px;
+            display: grid; grid-template-columns: repeat(3, 60px); grid-template-rows: repeat(2, 60px); gap: 8px;
             z-index: 10;
         }
         .btn {
-            width: 50px;
-            height: 50px;
-            background: rgba(255,255,255,0.3);
-            border: 2px solid white;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-            user-select: none;
+            width: 60px; height: 60px; background: rgba(0,0,0,0.4);
+            border: 2px solid #fff; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 24px; user-select: none;
         }
         #btn-up { grid-column: 2; }
         #btn-left { grid-column: 1; grid-row: 2; }
@@ -47,41 +35,69 @@
     <script type="module">
         import * as THREE from 'https://cdn.skypack.dev/three@0.132.2';
 
-        // 1. ESCENA Y CÁMARA
+        // 1. ESCENA Y MOTOR
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87CEEB);
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: false }); // Antialias off para look pixelado
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         document.body.appendChild(renderer.domElement);
 
-        const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(5, 10, 7.5);
         scene.add(light);
+        scene.add(new THREE.AmbientLight(0x404040));
 
-        // 2. GENERACIÓN DE TERRENO CON ALTURAS
+        // 2. MATERIALES CON "TEXTURAS" (Colores con bordes)
         const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-        const grassMat = new THREE.MeshLambertMaterial({ color: 0x55aa55 });
-        const dirtMat = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
+        const grassMat = new THREE.MeshLambertMaterial({ color: 0x4d9043 });
+        const dirtMat = new THREE.MeshLambertMaterial({ color: 0x6b4226 });
+        const woodMat = new THREE.MeshLambertMaterial({ color: 0x4a321f });
+        const leafMat = new THREE.MeshLambertMaterial({ color: 0x2d5a27 });
 
-        for (let x = -15; x < 15; x++) {
-            for (let z = -15; z < 15; z++) {
-                // Creamos una "colina" simple usando funciones matemáticas
-                const h = Math.floor(Math.random() * 2); 
-                for (let y = 0; y <= h; y++) {
-                    const material = (y === h) ? grassMat : dirtMat;
-                    const block = new THREE.Mesh(boxGeo, material);
-                    block.position.set(x, y, z);
-                    scene.add(block);
+        // 3. FUNCIÓN PARA CREAR ÁRBOLES
+        function createTree(x, z) {
+            const trunkHeight = 3 + Math.floor(Math.random() * 2);
+            // Tronco
+            for (let i = 0; i < trunkHeight; i++) {
+                const trunk = new THREE.Mesh(boxGeo, woodMat);
+                trunk.position.set(x, i + 1, z);
+                scene.add(trunk);
+            }
+            // Hojas
+            for (let hX = -1; hX <= 1; hX++) {
+                for (let hZ = -1; hZ <= 1; hZ++) {
+                    for (let hY = 0; hY < 2; hY++) {
+                        const leaf = new THREE.Mesh(boxGeo, leafMat);
+                        leaf.position.set(x + hX, trunkHeight + hY, z + hZ);
+                        scene.add(leaf);
+                    }
                 }
             }
         }
 
-        camera.position.set(0, 5, 10);
-        camera.lookAt(0, 0, 0);
+        // 4. GENERACIÓN DE TERRENO
+        for (let x = -15; x < 15; x++) {
+            for (let z = -15; z < 15; z++) {
+                const h = Math.floor(Math.random() * 1.5); // Altura suelo
+                const block = new THREE.Mesh(boxGeo, (h > 0) ? grassMat : dirtMat);
+                block.position.set(x, h, z);
+                scene.add(block);
 
-        // 3. LÓGICA DE MOVIMIENTO PARA IPHONE
+                // Probabilidad de árbol (solo en pasto)
+                if (Math.random() > 0.96 && x % 4 === 0) {
+                    createTree(x, z);
+                }
+            }
+        }
+
+        camera.position.set(0, 4, 10);
+
+        // 5. MOVIMIENTO Y CÁMARA SUAVE
         let move = { f: false, b: false, l: false, r: false };
+        let yaw = 0, pitch = 0;
+        let lastTouchX = 0, lastTouchY = 0;
 
         const setupBtn = (id, dir) => {
             const el = document.getElementById(id);
@@ -89,41 +105,54 @@
             el.addEventListener('touchend', (e) => { e.preventDefault(); move[dir] = false; });
         };
 
-        setupBtn('btn-up', 'f');
-        setupBtn('btn-down', 'b');
-        setupBtn('btn-left', 'l');
-        setupBtn('btn-right', 'r');
+        setupBtn('btn-up', 'f'); setupBtn('btn-down', 'b');
+        setupBtn('btn-left', 'l'); setupBtn('btn-right', 'r');
 
-        // 4. ROTACIÓN CON EL DEDO (MIRAR)
-        let touchX = 0, touchY = 0;
-        document.addEventListener('touchmove', (e) => {
-            if (e.touches.length === 1 && e.target.tagName !== 'DIV') {
-                const deltaX = e.touches[0].pageX - touchX;
-                camera.rotation.y -= deltaX * 0.005;
+        // Control de mirada suavizado
+        document.addEventListener('touchstart', e => {
+            if (e.target.tagName === 'CANVAS') {
+                lastTouchX = e.touches[0].pageX;
+                lastTouchY = e.touches[0].pageY;
             }
-            touchX = e.touches[0].pageX;
+        });
+
+        document.addEventListener('touchmove', e => {
+            if (e.target.tagName === 'CANVAS') {
+                const touch = e.touches[0];
+                const sensitivity = 0.003; // SENSIBILIDAD AJUSTADA
+                
+                yaw -= (touch.pageX - lastTouchX) * sensitivity;
+                pitch -= (touch.pageY - lastTouchY) * sensitivity;
+                
+                // Limitar rotación vertical para no dar la vuelta completa
+                pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+
+                lastTouchX = touch.pageX;
+                lastTouchY = touch.pageY;
+            }
         }, { passive: false });
 
-        // 5. BUCLE DE RENDERIZADO
+        // 6. BUCLE DE ANIMACIÓN
         function animate() {
             requestAnimationFrame(animate);
             
-            const speed = 0.1;
+            // Aplicar rotación suave
+            camera.rotation.order = "YXZ";
+            camera.rotation.y = yaw;
+            camera.rotation.x = pitch;
+
+            const speed = 0.12;
             if (move.f) camera.translateZ(-speed);
             if (move.b) camera.translateZ(speed);
             if (move.l) camera.translateX(-speed);
             if (move.r) camera.translateX(speed);
 
+            // Mantener al jugador sobre el suelo (gravedad simple)
+            camera.position.y = 3; 
+
             renderer.render(scene, camera);
         }
         animate();
-
-        // Ajustar al girar el iPhone
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
     </script>
 </body>
 </html>
