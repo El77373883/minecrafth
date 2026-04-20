@@ -63,11 +63,7 @@
             border-color: #fff;
             box-shadow: 0 0 0 3px rgba(255,255,255,0.5), inset 0 -2px 0 #5a5a5a;
         }
-        .slot.vacio {
-            background: #6b6b6b;
-            opacity: 0.8;
-        }
-        /* Crucecita para quitar bloque (modo creativo) */
+        /* Botón para quitar bloque de la mano */
         #clear-slot {
             position: absolute;
             bottom: 90px;
@@ -98,10 +94,8 @@
         <div class="btn" id="btn-right">→</div>
     </div>
 
-    <!-- Botón para quitar bloque de la mano -->
     <div id="clear-slot">✕</div>
 
-    <!-- INVENTARIO -->
     <div id="inventario">
         <div class="slot" data-index="0" data-block="grass">🌿</div>
         <div class="slot" data-index="1" data-block="dirt">🟫</div>
@@ -165,7 +159,6 @@
         const leafMat = new THREE.MeshLambertMaterial({map: leafTex});
         const pigMat = new THREE.MeshLambertMaterial({map: pigTex});
 
-        // Mapa para materiales según tipo de bloque
         function getMaterialForBlock(blockType) {
             switch(blockType) {
                 case 'grass': return grassMaterials;
@@ -181,9 +174,12 @@
             return Math.floor(Math.sin(x / 6) * 1.5 + Math.cos(z / 6) * 1.5);
         }
 
-        // --- 5. MUNDO CON CAPAS (Almacenamos referencia a los bloques para modificarlos) ---
+        // --- 5. MUNDO CON CAPAS ---
         const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-        const worldBlocks = new Map(); // "x,y,z" -> mesh
+        const worldBlocks = new Map();
+        
+        // Arrays para colisiones
+        const collisionObjects = [];
         
         for (let x = -30; x < 30; x++) {
             for (let z = -30; z < 30; z++) {
@@ -198,9 +194,10 @@
                     block.userData.type = blockType;
                     scene.add(block);
                     worldBlocks.set(`${x},${y},${z}`, block);
+                    collisionObjects.push(block);
                 }
 
-                // Árboles (simplificados, no los metemos en worldBlocks para no romper)
+                // Árboles
                 if (Math.random() > 0.985) { 
                     const trunkHeight = 4 + Math.floor(Math.random() * 3);
                     for(let i=1; i<=trunkHeight; i++) {
@@ -209,6 +206,7 @@
                         trunk.userData.type = 'wood';
                         scene.add(trunk);
                         worldBlocks.set(`${x},${surfaceY + i},${z}`, trunk);
+                        collisionObjects.push(trunk);
                     }
                     for(let y = trunkHeight - 2; y <= trunkHeight + 1; y++) {
                         let radius = (y === trunkHeight + 1) ? 1 : 2;
@@ -221,6 +219,7 @@
                                 leaf.userData.type = 'leaf';
                                 scene.add(leaf);
                                 worldBlocks.set(`${x+lx},${surfaceY + y},${z+lz}`, leaf);
+                                collisionObjects.push(leaf);
                             }
                         }
                     }
@@ -252,10 +251,15 @@
         scene.add(pig);
         pig.position.set(4, 0, 4);
 
-        // --- 7. CONTROLES ---
+        // --- 7. CONTROLES Y COLISIONES ---
         camera.position.set(0, 5, 8);
         let move = { f: false, b: false, l: false, r: false };
         let yaw = 0, pitch = 0, lastX = 0, lastY = 0;
+        
+        // Variables para detectar tap vs swipe
+        let touchStartTime = 0;
+        let touchStartPos = { x: 0, y: 0 };
+        let isTap = false;
 
         const setupBtn = (id, dir) => {
             const btn = document.getElementById(id);
@@ -264,27 +268,96 @@
         };
         setupBtn('btn-up', 'f'); setupBtn('btn-down', 'b'); setupBtn('btn-left', 'l'); setupBtn('btn-right', 'r');
 
-        document.addEventListener('touchstart', e => {
-            if(e.touches[0].target.tagName === 'CANVAS') {
-                lastX = e.touches[0].pageX; lastY = e.touches[0].pageY;
-            }
+        // Detectar inicio de touch en canvas
+        renderer.domElement.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            touchStartTime = Date.now();
+            touchStartPos.x = touch.pageX;
+            touchStartPos.y = touch.pageY;
+            lastX = touch.pageX;
+            lastY = touch.pageY;
+            isTap = true;
         }, {passive: false});
 
-        document.addEventListener('touchmove', e => {
-            if(e.touches[0].target.tagName === 'CANVAS') {
-                const sensitivity = 0.006;
-                yaw -= (e.touches[0].pageX - lastX) * sensitivity;
-                pitch -= (e.touches[0].pageY - lastY) * sensitivity;
-                pitch = Math.max(-1.4, Math.min(1.4, pitch));
-                lastX = e.touches[0].pageX; lastY = e.touches[0].pageY;
+        // Detectar movimiento
+        renderer.domElement.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            
+            // Si el movimiento es mayor a 10px, no es un tap
+            const dx = touch.pageX - touchStartPos.x;
+            const dy = touch.pageY - touchStartPos.y;
+            if (Math.sqrt(dx*dx + dy*dy) > 10) {
+                isTap = false;
             }
+            
+            const sensitivity = 0.006;
+            yaw -= (touch.pageX - lastX) * sensitivity;
+            pitch -= (touch.pageY - lastY) * sensitivity;
+            pitch = Math.max(-1.4, Math.min(1.4, pitch));
+            lastX = touch.pageX;
+            lastY = touch.pageY;
         }, {passive: false});
 
-        // --- 8. SISTEMA DE INVENTARIO Y COLOCACIÓN/ELIMINACIÓN ---
-        let selectedBlockType = 'grass'; // tipo actual
+        // Detectar fin de touch
+        renderer.domElement.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            
+            const touchDuration = Date.now() - touchStartTime;
+            
+            // Solo es un tap si duró menos de 200ms y no hubo movimiento significativo
+            if (isTap && touchDuration < 200) {
+                // Procesar como tap para colocar/eliminar bloque
+                const touch = e.changedTouches[0];
+                pointer.x = (touch.clientX / renderer.domElement.clientWidth) * 2 - 1;
+                pointer.y = -(touch.clientY / renderer.domElement.clientHeight) * 2 + 1;
+                
+                raycaster.setFromCamera(pointer, camera);
+                const meshes = Array.from(worldBlocks.values());
+                const intersects = raycaster.intersectObjects(meshes);
+                
+                if (intersects.length > 0) {
+                    const intersect = intersects[0];
+                    const block = intersect.object;
+                    
+                    if (selectedBlockType === null) {
+                        // Eliminar bloque
+                        const pos = block.position;
+                        const key = `${pos.x},${pos.y},${pos.z}`;
+                        worldBlocks.delete(key);
+                        scene.remove(block);
+                        // Remover de collisionObjects
+                        const index = collisionObjects.indexOf(block);
+                        if (index > -1) collisionObjects.splice(index, 1);
+                    } else {
+                        // Colocar bloque
+                        const normal = intersect.face.normal;
+                        const placePos = block.position.clone().add(normal);
+                        
+                        const key = `${placePos.x},${placePos.y},${placePos.z}`;
+                        if (!worldBlocks.has(key)) {
+                            const material = getMaterialForBlock(selectedBlockType);
+                            const newBlock = new THREE.Mesh(boxGeo, material);
+                            newBlock.position.copy(placePos);
+                            newBlock.userData.type = selectedBlockType;
+                            scene.add(newBlock);
+                            worldBlocks.set(key, newBlock);
+                            collisionObjects.push(newBlock);
+                        }
+                    }
+                }
+            }
+            
+            isTap = false;
+        }, {passive: false});
+
+        // --- 8. SISTEMA DE INVENTARIO ---
+        let selectedBlockType = 'grass';
         const slots = document.querySelectorAll('.slot');
+        const pointer = new THREE.Vector2();
+        const raycaster = new THREE.Raycaster();
         
-        // Selección de slot
         slots.forEach(slot => {
             slot.addEventListener('click', () => {
                 slots.forEach(s => s.classList.remove('seleccionado'));
@@ -293,61 +366,33 @@
             });
         });
 
-        // Botón para quitar bloque de la mano (poner "mano vacía")
         document.getElementById('clear-slot').addEventListener('click', () => {
             slots.forEach(s => s.classList.remove('seleccionado'));
             selectedBlockType = null;
         });
 
-        // Raycaster para colocar/eliminar bloques
-        const raycaster = new THREE.Raycaster();
-        const pointer = new THREE.Vector2();
-        
-        renderer.domElement.addEventListener('touchstart', (e) => {
-            // Solo si no tocamos botones (evitamos conflicto)
-            if (e.target.tagName !== 'CANVAS') return;
-            e.preventDefault();
+        // --- 9. FUNCIÓN DE COLISIÓN MEJORADA ---
+        function checkCollision(newPos) {
+            const playerRadius = 0.6;
+            const playerHeight = 1.8;
             
-            const touch = e.touches[0];
-            pointer.x = (touch.clientX / renderer.domElement.clientWidth) * 2 - 1;
-            pointer.y = -(touch.clientY / renderer.domElement.clientHeight) * 2 + 1;
-            
-            raycaster.setFromCamera(pointer, camera);
-            
-            // Buscar todos los bloques del mundo
-            const meshes = Array.from(worldBlocks.values());
-            const intersects = raycaster.intersectObjects(meshes);
-            
-            if (intersects.length > 0) {
-                const intersect = intersects[0];
-                const block = intersect.object;
+            for (const obj of collisionObjects) {
+                const boxPos = obj.position;
+                const dx = Math.abs(newPos.x - boxPos.x);
+                const dy = Math.abs(newPos.y - boxPos.y);
+                const dz = Math.abs(newPos.z - boxPos.z);
                 
-                if (selectedBlockType === null) {
-                    // Modo eliminar: si no hay bloque seleccionado, rompemos el bloque
-                    const pos = block.position;
-                    const key = `${pos.x},${pos.y},${pos.z}`;
-                    worldBlocks.delete(key);
-                    scene.remove(block);
-                } else {
-                    // Modo colocar: poner bloque en la cara adyacente
-                    const normal = intersect.face.normal;
-                    const placePos = block.position.clone().add(normal);
-                    
-                    // Verificar que no haya ya un bloque ahí
-                    const key = `${placePos.x},${placePos.y},${placePos.z}`;
-                    if (!worldBlocks.has(key)) {
-                        const material = getMaterialForBlock(selectedBlockType);
-                        const newBlock = new THREE.Mesh(boxGeo, material);
-                        newBlock.position.copy(placePos);
-                        newBlock.userData.type = selectedBlockType;
-                        scene.add(newBlock);
-                        worldBlocks.set(key, newBlock);
-                    }
+                // Colisión AABB simple
+                if (dx < (0.5 + playerRadius) && 
+                    dy < (0.5 + playerHeight/2) && 
+                    dz < (0.5 + playerRadius)) {
+                    return true;
                 }
             }
-        }, {passive: false});
+            return false;
+        }
 
-        // --- 9. AJUSTE DE PANTALLA ---
+        // --- 10. AJUSTE DE PANTALLA ---
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
@@ -356,7 +401,7 @@
         window.addEventListener('resize', onWindowResize);
         window.addEventListener('orientationchange', () => setTimeout(onWindowResize, 200));
 
-        // --- 10. ANIMACIÓN Y FÍSICAS ---
+        // --- 11. ANIMACIÓN Y FÍSICAS ---
         function animate() {
             requestAnimationFrame(animate);
             camera.rotation.order = "YXZ";
@@ -364,10 +409,41 @@
             camera.rotation.x = pitch;
 
             const speed = 0.15;
-            if (move.f) camera.translateZ(-speed);
-            if (move.b) camera.translateZ(speed);
-            if (move.l) camera.translateX(-speed);
-            if (move.r) camera.translateX(speed);
+            let newPos = camera.position.clone();
+            
+            if (move.f) {
+                const forward = new THREE.Vector3(0, 0, -1);
+                forward.applyQuaternion(camera.quaternion);
+                forward.y = 0;
+                forward.normalize();
+                newPos.add(forward.multiplyScalar(speed));
+            }
+            if (move.b) {
+                const backward = new THREE.Vector3(0, 0, 1);
+                backward.applyQuaternion(camera.quaternion);
+                backward.y = 0;
+                backward.normalize();
+                newPos.add(backward.multiplyScalar(speed));
+            }
+            if (move.l) {
+                const left = new THREE.Vector3(-1, 0, 0);
+                left.applyQuaternion(camera.quaternion);
+                left.y = 0;
+                left.normalize();
+                newPos.add(left.multiplyScalar(speed));
+            }
+            if (move.r) {
+                const right = new THREE.Vector3(1, 0, 0);
+                right.applyQuaternion(camera.quaternion);
+                right.y = 0;
+                right.normalize();
+                newPos.add(right.multiplyScalar(speed));
+            }
+            
+            // Verificar colisión antes de mover
+            if (!checkCollision(newPos)) {
+                camera.position.copy(newPos);
+            }
 
             const playerGridX = Math.round(camera.position.x);
             const playerGridZ = Math.round(camera.position.z);
