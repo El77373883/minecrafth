@@ -2,108 +2,128 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Mi Clon de Minecraft</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Minecraft Mobile</title>
     <style>
-        body { margin: 0; overflow: hidden; }
-        #instrucciones {
+        body { margin: 0; overflow: hidden; touch-action: none; background: #87CEEB; }
+        #controles-movil {
             position: absolute;
-            top: 10px;
-            left: 10px;
-            color: white;
-            background: rgba(0,0,0,0.5);
-            padding: 10px;
-            font-family: sans-serif;
+            bottom: 20px;
+            left: 20px;
+            display: grid;
+            grid-template-columns: repeat(3, 50px);
+            grid-template-rows: repeat(2, 50px);
+            gap: 5px;
+            z-index: 10;
         }
+        .btn {
+            width: 50px;
+            height: 50px;
+            background: rgba(255,255,255,0.3);
+            border: 2px solid white;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            user-select: none;
+        }
+        #btn-up { grid-column: 2; }
+        #btn-left { grid-column: 1; grid-row: 2; }
+        #btn-down { grid-column: 2; grid-row: 2; }
+        #btn-right { grid-column: 3; grid-row: 2; }
     </style>
 </head>
 <body>
-    <div id="instrucciones">WASD para mover | Click para eliminar bloques | Click en pantalla para empezar</div>
+
+    <div id="controles-movil">
+        <div class="btn" id="btn-up">↑</div>
+        <div class="btn" id="btn-left">←</div>
+        <div class="btn" id="btn-down">↓</div>
+        <div class="btn" id="btn-right">→</div>
+    </div>
 
     <script type="module">
         import * as THREE from 'https://cdn.skypack.dev/three@0.132.2';
-        import { PointerLockControls } from 'https://cdn.skypack.dev/three@0.132.2/examples/jsm/controls/PointerLockControls.js';
 
-        // 1. CONFIGURACIÓN BÁSICA
+        // 1. ESCENA Y CÁMARA
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87CEEB); // Color cielo
-        
+        scene.background = new THREE.Color(0x87CEEB);
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer();
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(renderer.domElement);
 
-        // 2. LUCES
-        const light = new THREE.HemisphereLight(0xeeeeee, 0x888888, 1);
+        const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
         scene.add(light);
 
-        // 3. CONTROLES DE MOVIMIENTO
-        const controls = new PointerLockControls(camera, document.body);
-        document.body.addEventListener('click', () => controls.lock());
+        // 2. GENERACIÓN DE TERRENO CON ALTURAS
+        const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+        const grassMat = new THREE.MeshLambertMaterial({ color: 0x55aa55 });
+        const dirtMat = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
 
-        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
-        const onKeyDown = (e) => {
-            if (e.code === 'KeyW') moveForward = true;
-            if (e.code === 'KeyS') moveBackward = true;
-            if (e.code === 'KeyA') moveLeft = true;
-            if (e.code === 'KeyD') moveRight = true;
-        };
-        const onKeyUp = (e) => {
-            if (e.code === 'KeyW') moveForward = false;
-            if (e.code === 'KeyS') moveBackward = false;
-            if (e.code === 'KeyA') moveLeft = false;
-            if (e.code === 'KeyD') moveRight = false;
-        };
-        document.addEventListener('keydown', onKeyDown);
-        document.addEventListener('keyup', onKeyUp);
-
-        // 4. GENERACIÓN DEL TERRENO (BLOQUES)
-        const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
-        const material = new THREE.MeshLambertMaterial({ color: 0x44aa44 }); // Verde pasto
-
-        for (let x = -10; x < 10; x++) {
-            for (let z = -10; z < 10; z++) {
-                const mesh = new THREE.Mesh(boxGeometry, material);
-                mesh.position.set(x, 0, z);
-                scene.add(mesh);
+        for (let x = -15; x < 15; x++) {
+            for (let z = -15; z < 15; z++) {
+                // Creamos una "colina" simple usando funciones matemáticas
+                const h = Math.floor(Math.random() * 2); 
+                for (let y = 0; y <= h; y++) {
+                    const material = (y === h) ? grassMat : dirtMat;
+                    const block = new THREE.Mesh(boxGeo, material);
+                    block.position.set(x, y, z);
+                    scene.add(block);
+                }
             }
         }
 
-        camera.position.y = 2; // Altura de los ojos
+        camera.position.set(0, 5, 10);
+        camera.lookAt(0, 0, 0);
 
-        // 5. SISTEMA DE MINADO (RAYCASTER)
-        const raycaster = new THREE.Raycaster();
-        document.addEventListener('mousedown', (event) => {
-            if (controls.isLocked) {
-                raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-                const intersects = raycaster.intersectObjects(scene.children);
-                if (intersects.length > 0) {
-                    const object = intersects[0].object;
-                    scene.remove(object); // "Elimina" el bloque
-                }
+        // 3. LÓGICA DE MOVIMIENTO PARA IPHONE
+        let move = { f: false, b: false, l: false, r: false };
+
+        const setupBtn = (id, dir) => {
+            const el = document.getElementById(id);
+            el.addEventListener('touchstart', (e) => { e.preventDefault(); move[dir] = true; });
+            el.addEventListener('touchend', (e) => { e.preventDefault(); move[dir] = false; });
+        };
+
+        setupBtn('btn-up', 'f');
+        setupBtn('btn-down', 'b');
+        setupBtn('btn-left', 'l');
+        setupBtn('btn-right', 'r');
+
+        // 4. ROTACIÓN CON EL DEDO (MIRAR)
+        let touchX = 0, touchY = 0;
+        document.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 1 && e.target.tagName !== 'DIV') {
+                const deltaX = e.touches[0].pageX - touchX;
+                camera.rotation.y -= deltaX * 0.005;
             }
-        });
+            touchX = e.touches[0].pageX;
+        }, { passive: false });
 
-        // 6. BUCLE DE ANIMACIÓN
-        const velocity = new THREE.Vector3();
+        // 5. BUCLE DE RENDERIZADO
         function animate() {
             requestAnimationFrame(animate);
             
-            if (controls.isLocked) {
-                const delta = 0.1;
-                velocity.x -= velocity.x * 10.0 * delta;
-                velocity.z -= velocity.z * 10.0 * delta;
+            const speed = 0.1;
+            if (move.f) camera.translateZ(-speed);
+            if (move.b) camera.translateZ(speed);
+            if (move.l) camera.translateX(-speed);
+            if (move.r) camera.translateX(speed);
 
-                if (moveForward) velocity.z -= 40.0 * delta;
-                if (moveBackward) velocity.z += 40.0 * delta;
-                if (moveLeft) velocity.x -= 40.0 * delta;
-                if (moveRight) velocity.x += 40.0 * delta;
-
-                controls.moveRight(-velocity.x * delta);
-                controls.moveForward(-velocity.z * delta);
-            }
             renderer.render(scene, camera);
         }
         animate();
+
+        // Ajustar al girar el iPhone
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
     </script>
 </body>
 </html>
