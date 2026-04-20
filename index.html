@@ -3,16 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Minecraft Mobile v2</title>
+    <title>Minecraft Pixel Texture</title>
     <style>
-        body { margin: 0; overflow: hidden; touch-action: none; background: #87CEEB; font-family: sans-serif; }
-        #controles-movil {
+        body { margin: 0; overflow: hidden; touch-action: none; background: #87CEEB; }
+        #controles {
             position: absolute; bottom: 30px; left: 30px;
-            display: grid; grid-template-columns: repeat(3, 60px); grid-template-rows: repeat(2, 60px); gap: 8px;
-            z-index: 10;
+            display: grid; grid-template-columns: repeat(3, 60px); gap: 8px; z-index: 10;
         }
         .btn {
-            width: 60px; height: 60px; background: rgba(0,0,0,0.4);
+            width: 60px; height: 60px; background: rgba(0,0,0,0.5);
             border: 2px solid #fff; border-radius: 12px;
             display: flex; align-items: center; justify-content: center;
             color: white; font-size: 24px; user-select: none;
@@ -25,7 +24,7 @@
 </head>
 <body>
 
-    <div id="controles-movil">
+    <div id="controles">
         <div class="btn" id="btn-up">↑</div>
         <div class="btn" id="btn-left">←</div>
         <div class="btn" id="btn-down">↓</div>
@@ -35,121 +34,104 @@
     <script type="module">
         import * as THREE from 'https://cdn.skypack.dev/three@0.132.2';
 
-        // 1. ESCENA Y MOTOR
+        // 1. MOTOR DE RENDERIZADO
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87CEEB);
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: false }); // Antialias off para look pixelado
+        const renderer = new THREE.WebGLRenderer({ antialias: false });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         document.body.appendChild(renderer.domElement);
 
-        const light = new THREE.DirectionalLight(0xffffff, 1);
-        light.position.set(5, 10, 7.5);
+        const light = new THREE.DirectionalLight(0xffffff, 1.2);
+        light.position.set(10, 20, 10);
         scene.add(light);
-        scene.add(new THREE.AmbientLight(0x404040));
+        scene.add(new THREE.AmbientLight(0xffffff, 0.4));
 
-        // 2. MATERIALES CON "TEXTURAS" (Colores con bordes)
+        // 2. GENERADOR DE TEXTURAS PIXELADAS (Estilo Minecraft)
+        function createPixelTexture(colorBase) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 16;
+            canvas.height = 16;
+            const ctx = canvas.getContext('2d');
+            
+            for(let x=0; x<16; x++) {
+                for(let y=0; y<16; y++) {
+                    // Variación de color aleatoria para efecto ruido/píxel
+                    const noise = Math.random() * 20;
+                    ctx.fillStyle = `rgb(${colorBase.r - noise}, ${colorBase.g - noise}, ${colorBase.b - noise})`;
+                    ctx.fillRect(x, y, 1, 1);
+                }
+            }
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.magFilter = THREE.NearestFilter; // Mantiene los píxeles nítidos
+            texture.minFilter = THREE.NearestFilter;
+            return texture;
+        }
+
+        const grassTex = createPixelTexture({r: 90, g: 160, b: 60});
+        const dirtTex = createPixelTexture({r: 120, g: 80, b: 50});
+
+        // Materiales para las 6 caras del bloque de pasto (Top, Bottom, Sides)
+        const grassMaterials = [
+            new THREE.MeshLambertMaterial({map: dirtTex}), // derecha
+            new THREE.MeshLambertMaterial({map: dirtTex}), // izquierda
+            new THREE.MeshLambertMaterial({map: grassTex}), // arriba (pasto)
+            new THREE.MeshLambertMaterial({map: dirtTex}), // abajo
+            new THREE.MeshLambertMaterial({map: dirtTex}), // frente
+            new THREE.MeshLambertMaterial({map: dirtTex}), // atrás
+        ];
+
+        // 3. TERRENO
         const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-        const grassMat = new THREE.MeshLambertMaterial({ color: 0x4d9043 });
-        const dirtMat = new THREE.MeshLambertMaterial({ color: 0x6b4226 });
-        const woodMat = new THREE.MeshLambertMaterial({ color: 0x4a321f });
-        const leafMat = new THREE.MeshLambertMaterial({ color: 0x2d5a27 });
-
-        // 3. FUNCIÓN PARA CREAR ÁRBOLES
-        function createTree(x, z) {
-            const trunkHeight = 3 + Math.floor(Math.random() * 2);
-            // Tronco
-            for (let i = 0; i < trunkHeight; i++) {
-                const trunk = new THREE.Mesh(boxGeo, woodMat);
-                trunk.position.set(x, i + 1, z);
-                scene.add(trunk);
-            }
-            // Hojas
-            for (let hX = -1; hX <= 1; hX++) {
-                for (let hZ = -1; hZ <= 1; hZ++) {
-                    for (let hY = 0; hY < 2; hY++) {
-                        const leaf = new THREE.Mesh(boxGeo, leafMat);
-                        leaf.position.set(x + hX, trunkHeight + hY, z + hZ);
-                        scene.add(leaf);
-                    }
-                }
-            }
-        }
-
-        // 4. GENERACIÓN DE TERRENO
-        for (let x = -15; x < 15; x++) {
-            for (let z = -15; z < 15; z++) {
-                const h = Math.floor(Math.random() * 1.5); // Altura suelo
-                const block = new THREE.Mesh(boxGeo, (h > 0) ? grassMat : dirtMat);
-                block.position.set(x, h, z);
+        for (let x = -12; x < 12; x++) {
+            for (let z = -12; z < 12; z++) {
+                const block = new THREE.Mesh(boxGeo, grassMaterials);
+                block.position.set(x, 0, z);
                 scene.add(block);
-
-                // Probabilidad de árbol (solo en pasto)
-                if (Math.random() > 0.96 && x % 4 === 0) {
-                    createTree(x, z);
-                }
             }
         }
 
-        camera.position.set(0, 4, 10);
-
-        // 5. MOVIMIENTO Y CÁMARA SUAVE
+        // 4. CÁMARA Y CONTROLES (Iphone)
+        camera.position.set(0, 2.5, 5);
         let move = { f: false, b: false, l: false, r: false };
-        let yaw = 0, pitch = 0;
-        let lastTouchX = 0, lastTouchY = 0;
+        let yaw = 0, pitch = 0, lastX = 0, lastY = 0;
 
         const setupBtn = (id, dir) => {
-            const el = document.getElementById(id);
-            el.addEventListener('touchstart', (e) => { e.preventDefault(); move[dir] = true; });
-            el.addEventListener('touchend', (e) => { e.preventDefault(); move[dir] = false; });
+            document.getElementById(id).addEventListener('touchstart', (e) => { e.preventDefault(); move[dir] = true; });
+            document.getElementById(id).addEventListener('touchend', (e) => { e.preventDefault(); move[dir] = false; });
         };
-
         setupBtn('btn-up', 'f'); setupBtn('btn-down', 'b');
         setupBtn('btn-left', 'l'); setupBtn('btn-right', 'r');
 
-        // Control de mirada suavizado
-        document.addEventListener('touchstart', e => {
-            if (e.target.tagName === 'CANVAS') {
-                lastTouchX = e.touches[0].pageX;
-                lastTouchY = e.touches[0].pageY;
+        document.addEventListener('touchstart', e => { 
+            if(e.touches[0].target.tagName === 'CANVAS'){
+                lastX = e.touches[0].pageX; lastY = e.touches[0].pageY; 
             }
         });
-
         document.addEventListener('touchmove', e => {
-            if (e.target.tagName === 'CANVAS') {
-                const touch = e.touches[0];
-                const sensitivity = 0.003; // SENSIBILIDAD AJUSTADA
-                
-                yaw -= (touch.pageX - lastTouchX) * sensitivity;
-                pitch -= (touch.pageY - lastTouchY) * sensitivity;
-                
-                // Limitar rotación vertical para no dar la vuelta completa
-                pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
-
-                lastTouchX = touch.pageX;
-                lastTouchY = touch.pageY;
+            if(e.touches[0].target.tagName === 'CANVAS'){
+                const sensitivity = 0.005;
+                yaw -= (e.touches[0].pageX - lastX) * sensitivity;
+                pitch -= (e.touches[0].pageY - lastY) * sensitivity;
+                pitch = Math.max(-1.5, Math.min(1.5, pitch));
+                lastX = e.touches[0].pageX; lastY = e.touches[0].pageY;
             }
         }, { passive: false });
 
-        // 6. BUCLE DE ANIMACIÓN
+        // 5. ANIMACIÓN
         function animate() {
             requestAnimationFrame(animate);
-            
-            // Aplicar rotación suave
             camera.rotation.order = "YXZ";
             camera.rotation.y = yaw;
             camera.rotation.x = pitch;
-
-            const speed = 0.12;
+            
+            const speed = 0.1;
             if (move.f) camera.translateZ(-speed);
             if (move.b) camera.translateZ(speed);
             if (move.l) camera.translateX(-speed);
             if (move.r) camera.translateX(speed);
-
-            // Mantener al jugador sobre el suelo (gravedad simple)
-            camera.position.y = 3; 
-
+            
+            camera.position.y = 1.8; // Altura fija
             renderer.render(scene, camera);
         }
         animate();
