@@ -178,7 +178,7 @@
         // --- 1. ESCENA ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87CEEB);
-        scene.fog = new THREE.Fog(0x87CEEB, 10, 40);
+        scene.fog = new THREE.Fog(0x87CEEB, 20, 80);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: false });
@@ -187,7 +187,7 @@
         document.body.appendChild(renderer.domElement);
 
         const light = new THREE.DirectionalLight(0xffffff, 1.2);
-        light.position.set(10, 20, 10);
+        light.position.set(20, 30, 20);
         scene.add(light);
         scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 
@@ -214,6 +214,7 @@
         const dirtTex = createPixelTexture(120, 85, 50);
         const woodTex = createPixelTexture(95, 65, 40);
         const leafTex = createPixelTexture(50, 120, 40, 20);
+        const waterTex = createPixelTexture(50, 100, 220, 15);
 
         // --- 3. MATERIALES ---
         const dirtMat = new THREE.MeshLambertMaterial({map: dirtTex});
@@ -223,6 +224,7 @@
         
         const woodMat = new THREE.MeshLambertMaterial({map: woodTex});
         const leafMat = new THREE.MeshLambertMaterial({map: leafTex});
+        const waterMat = new THREE.MeshLambertMaterial({map: waterTex, transparent: true, opacity: 0.7});
 
         function getMaterialForBlock(blockType) {
             switch(blockType) {
@@ -230,23 +232,28 @@
                 case 'dirt': return dirtMat;
                 case 'wood': return woodMat;
                 case 'leaf': return leafMat;
+                case 'water': return waterMat;
                 default: return dirtMat;
             }
         }
 
         // --- 4. FUNCIÓN PARA ALTURA DEL TERRENO ---
         function getTerrainHeight(x, z) {
-            return Math.floor(Math.sin(x / 6) * 1.5 + Math.cos(z / 6) * 1.5);
+            // Colinas más grandes y variadas
+            return Math.floor(Math.sin(x / 10) * 3 + Math.cos(z / 10) * 3 + Math.sin(x / 5) * 1.5);
         }
 
-        // --- 5. MUNDO CON CAPAS ---
+        // --- 5. MUNDO EXTENDIDO CON CAPAS, LAGOS Y CASCADAS ---
         const boxGeo = new THREE.BoxGeometry(1, 1, 1);
         const worldBlocks = new Map();
+        const waterBlocks = [];
         
-        for (let x = -30; x < 30; x++) {
-            for (let z = -30; z < 30; z++) {
+        // Primero generamos el terreno base
+        for (let x = -60; x < 60; x++) {
+            for (let z = -60; z < 60; z++) {
                 const surfaceY = getTerrainHeight(x, z);
 
+                // Capas de tierra
                 for (let y = surfaceY - 2; y <= surfaceY; y++) {
                     const isTopLayer = (y === surfaceY);
                     const blockType = isTopLayer ? 'grass' : 'dirt';
@@ -258,7 +265,112 @@
                     worldBlocks.set(`${x},${y},${z}`, block);
                 }
 
-                if (Math.random() > 0.985) { 
+                // Lagos en zonas bajas (cuando la altura es <= 0)
+                if (surfaceY <= 0 && Math.random() > 0.85) {
+                    // Crear lago de 3x3 o 4x4
+                    const lakeSize = Math.random() > 0.5 ? 3 : 4;
+                    if (x % lakeSize === 0 && z % lakeSize === 0) {
+                        for (let lx = 0; lx < lakeSize; lx++) {
+                            for (let lz = 0; lz < lakeSize; lz++) {
+                                const wx = x + lx;
+                                const wz = z + lz;
+                                const wy = getTerrainHeight(wx, wz);
+                                
+                                // Solo poner agua si está bajo
+                                if (wy <= 0) {
+                                    for (let depth = 1; depth <= 2; depth++) {
+                                        const waterY = wy + depth;
+                                        const key = `${wx},${waterY},${wz}`;
+                                        
+                                        // Eliminar bloque existente si hay
+                                        const existingKey = `${wx},${waterY},${wz}`;
+                                        if (worldBlocks.has(existingKey)) {
+                                            const oldBlock = worldBlocks.get(existingKey);
+                                            scene.remove(oldBlock);
+                                            worldBlocks.delete(existingKey);
+                                        }
+                                        
+                                        // Solo poner agua hasta el nivel 1 (superficie)
+                                        if (depth === 1 || (depth === 2 && Math.random() > 0.3)) {
+                                            const water = new THREE.Mesh(boxGeo, waterMat);
+                                            water.position.set(wx, waterY, wz);
+                                            water.userData.type = 'water';
+                                            scene.add(water);
+                                            worldBlocks.set(key, water);
+                                            waterBlocks.push(water);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Cascadas en elevaciones altas
+                if (surfaceY >= 4 && Math.random() > 0.98) {
+                    // Crear una cascada que cae por la ladera
+                    let currentY = surfaceY;
+                    let wx = x;
+                    let wz = z;
+                    let flowX = 0, flowZ = 0;
+                    
+                    // Determinar dirección de la cascada (hacia el lado más bajo)
+                    const neighbors = [
+                        [1, 0], [-1, 0], [0, 1], [0, -1]
+                    ];
+                    let lowestNeighbor = null;
+                    let lowestHeight = currentY;
+                    
+                    neighbors.forEach(([dx, dz]) => {
+                        const nh = getTerrainHeight(wx + dx, wz + dz);
+                        if (nh < lowestHeight) {
+                            lowestHeight = nh;
+                            lowestNeighbor = [dx, dz];
+                        }
+                    });
+                    
+                    if (lowestNeighbor) {
+                        flowX = lowestNeighbor[0];
+                        flowZ = lowestNeighbor[1];
+                        
+                        // Crear el flujo de agua hacia abajo
+                        let steps = 0;
+                        while (currentY > lowestHeight && steps < 10) {
+                            wx += flowX;
+                            wz += flowZ;
+                            currentY = getTerrainHeight(wx, wz);
+                            
+                            // Agregar bloque de agua
+                            const waterY = currentY + 1;
+                            const key = `${wx},${waterY},${wz}`;
+                            
+                            if (!worldBlocks.has(key)) {
+                                const water = new THREE.Mesh(boxGeo, waterMat);
+                                water.position.set(wx, waterY, wz);
+                                water.userData.type = 'water';
+                                scene.add(water);
+                                worldBlocks.set(key, water);
+                                waterBlocks.push(water);
+                            }
+                            
+                            // Agregar agua también en el bloque de abajo
+                            const belowKey = `${wx},${waterY - 1},${wz}`;
+                            if (!worldBlocks.has(belowKey) && waterY - 1 > lowestHeight) {
+                                const waterBelow = new THREE.Mesh(boxGeo, waterMat);
+                                waterBelow.position.set(wx, waterY - 1, wz);
+                                waterBelow.userData.type = 'water';
+                                scene.add(waterBelow);
+                                worldBlocks.set(belowKey, waterBelow);
+                                waterBlocks.push(waterBelow);
+                            }
+                            
+                            steps++;
+                        }
+                    }
+                }
+
+                // Árboles
+                if (Math.random() > 0.985 && surfaceY > 0) { 
                     const trunkHeight = 4 + Math.floor(Math.random() * 3);
                     for(let i=1; i<=trunkHeight; i++) {
                         const trunk = new THREE.Mesh(boxGeo, woodMat);
@@ -385,8 +497,8 @@
             updateHand();
         }
 
-        // --- 7. CONTROLES (MOVIMIENTO LIBRE SIN COLISIÓN) ---
-        camera.position.set(0, 5, 8);
+        // --- 7. CONTROLES (MOVIMIENTO LIBRE) ---
+        camera.position.set(0, 8, 15);
         let move = { f: false, b: false, l: false, r: false };
         let yaw = 0, pitch = 0, lastX = 0, lastY = 0;
         let isTap = false, touchStartTime = 0, touchStartPos = { x: 0, y: 0 };
@@ -480,7 +592,7 @@
             isTap = false;
         });
 
-        // --- 8. ANIMACIÓN (SIN COLISIÓN) ---
+        // --- 8. ANIMACIÓN ---
         function animate() {
             requestAnimationFrame(animate);
             
@@ -488,9 +600,9 @@
             camera.rotation.y = yaw;
             camera.rotation.x = pitch;
 
-            const speed = 0.2;
+            const speed = 0.25;
             
-            // Movimiento libre en XZ
+            // Movimiento libre
             if (move.f) {
                 camera.position.x -= Math.sin(yaw) * speed;
                 camera.position.z -= Math.cos(yaw) * speed;
@@ -508,9 +620,14 @@
                 camera.position.z -= Math.sin(yaw) * speed;
             }
 
-            // Ajuste de altura según terreno
+            // Altura según terreno
             const groundY = getTerrainHeight(Math.round(camera.position.x), Math.round(camera.position.z));
-            camera.position.y += (groundY + 1.8 - camera.position.y) * 0.15;
+            camera.position.y += (groundY + 2.0 - camera.position.y) * 0.1;
+
+            // Animación del agua (ondulación simple)
+            waterBlocks.forEach((water, index) => {
+                water.position.y += Math.sin(Date.now() * 0.003 + index) * 0.002;
+            });
 
             renderer.render(scene, camera);
         }
