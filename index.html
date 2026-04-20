@@ -25,7 +25,6 @@
         #btn-down { grid-column: 2; grid-row: 2; }
         #btn-right { grid-column: 3; grid-row: 2; }
 
-        /* Mano del jugador */
         #player-hand {
             position: absolute;
             bottom: 30px;
@@ -43,7 +42,6 @@
             pointer-events: none;
         }
 
-        /* Barra de inventario rápido */
         #hotbar {
             position: absolute;
             bottom: 20px;
@@ -387,7 +385,7 @@
             updateHand();
         }
 
-        // --- 7. CONTROLES E INTERACCIÓN ---
+        // --- 7. CONTROLES (MOVIMIENTO LIBRE SIN COLISIÓN) ---
         camera.position.set(0, 5, 8);
         let move = { f: false, b: false, l: false, r: false };
         let yaw = 0, pitch = 0, lastX = 0, lastY = 0;
@@ -482,20 +480,7 @@
             isTap = false;
         });
 
-        // --- 8. COLISIÓN SIMPLE ---
-        function canMoveTo(newX, newY, newZ) {
-            const checkX = Math.round(newX);
-            const checkY = Math.round(newY);
-            const checkZ = Math.round(newZ);
-            
-            for (let dy = -1; dy <= 1; dy++) {
-                const key = `${checkX},${checkY + dy},${checkZ}`;
-                if (worldBlocks.has(key)) return false;
-            }
-            return true;
-        }
-
-        // --- 9. ANIMACIÓN ---
+        // --- 8. ANIMACIÓN (SIN COLISIÓN) ---
         function animate() {
             requestAnimationFrame(animate);
             
@@ -503,27 +488,27 @@
             camera.rotation.y = yaw;
             camera.rotation.x = pitch;
 
-            const speed = 0.15;
-            let moveX = 0, moveZ = 0;
+            const speed = 0.2;
             
-            if (move.f) { moveX -= Math.sin(yaw) * speed; moveZ -= Math.cos(yaw) * speed; }
-            if (move.b) { moveX += Math.sin(yaw) * speed; moveZ += Math.cos(yaw) * speed; }
-            if (move.l) { moveX -= Math.cos(yaw) * speed; moveZ += Math.sin(yaw) * speed; }
-            if (move.r) { moveX += Math.cos(yaw) * speed; moveZ -= Math.sin(yaw) * speed; }
-            
-            if (moveX !== 0) {
-                const newX = camera.position.x + moveX;
-                if (canMoveTo(newX, camera.position.y, camera.position.z)) {
-                    camera.position.x = newX;
-                }
+            // Movimiento libre en XZ
+            if (move.f) {
+                camera.position.x -= Math.sin(yaw) * speed;
+                camera.position.z -= Math.cos(yaw) * speed;
             }
-            if (moveZ !== 0) {
-                const newZ = camera.position.z + moveZ;
-                if (canMoveTo(camera.position.x, camera.position.y, newZ)) {
-                    camera.position.z = newZ;
-                }
+            if (move.b) {
+                camera.position.x += Math.sin(yaw) * speed;
+                camera.position.z += Math.cos(yaw) * speed;
+            }
+            if (move.l) {
+                camera.position.x -= Math.cos(yaw) * speed;
+                camera.position.z += Math.sin(yaw) * speed;
+            }
+            if (move.r) {
+                camera.position.x += Math.cos(yaw) * speed;
+                camera.position.z -= Math.sin(yaw) * speed;
             }
 
+            // Ajuste de altura según terreno
             const groundY = getTerrainHeight(Math.round(camera.position.x), Math.round(camera.position.z));
             camera.position.y += (groundY + 1.8 - camera.position.y) * 0.15;
 
