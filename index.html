@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Minecraft Mobile: HD & Big Trees</title>
+    <title>Minecraft Mobile: Capas y Colinas</title>
     <style>
         body { 
             margin: 0; padding: 0; overflow: hidden; touch-action: none; 
@@ -41,7 +41,7 @@
         // --- 1. ESCENA ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87CEEB);
-        scene.fog = new THREE.Fog(0x87CEEB, 15, 50);
+        scene.fog = new THREE.Fog(0x87CEEB, 10, 40);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: false });
@@ -54,7 +54,7 @@
         scene.add(light);
         scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 
-        // --- 2. GENERADOR DE TEXTURAS MEJORADO ---
+        // --- 2. TEXTURAS ---
         function createPixelTexture(r, g, b, noiseRange = 25, size = 16, detail = false) {
             const canvas = document.createElement('canvas');
             canvas.width = size; canvas.height = size;
@@ -63,12 +63,7 @@
                 for(let y=0; y<size; y++) {
                     let n = Math.random() * noiseRange;
                     let pr = r - n, pg = g - n, pb = b - n;
-                    
-                    // Añadir briznas de hierba brillantes si es césped detallado
-                    if (detail && Math.random() > 0.85) {
-                        pr = r + 30; pg = g + 40; pb = b; // Verde más claro y brillante
-                    }
-                    
+                    if (detail && Math.random() > 0.85) { pr = r + 30; pg = g + 40; pb = b; }
                     ctx.fillStyle = `rgb(${pr}, ${pg}, ${pb})`;
                     ctx.fillRect(x, y, 1, 1);
                 }
@@ -79,14 +74,14 @@
             return tex;
         }
 
-        // Texturas: El césped ahora es de 32x32 para mayor detalle
         const grassTex = createPixelTexture(90, 170, 60, 30, 32, true); 
         const dirtTex = createPixelTexture(120, 85, 50);
         const woodTex = createPixelTexture(95, 65, 40);
-        const leafTex = createPixelTexture(50, 120, 40, 20, 16, true); // Hojas con más variación
+        const leafTex = createPixelTexture(50, 120, 40, 20, 16, true);
         const pigTex = createPixelTexture(255, 180, 190, 15);
 
         // --- 3. MATERIALES ---
+        const dirtMat = new THREE.MeshLambertMaterial({map: dirtTex}); // Material solo de tierra
         const grassMatSides = new THREE.MeshLambertMaterial({map: dirtTex});
         const grassMatTop = new THREE.MeshLambertMaterial({map: grassTex});
         const grassMaterials = [grassMatSides, grassMatSides, grassMatTop, grassMatSides, grassMatSides, grassMatSides];
@@ -95,40 +90,43 @@
         const leafMat = new THREE.MeshLambertMaterial({map: leafTex});
         const pigMat = new THREE.MeshLambertMaterial({map: pigTex});
 
-        // --- 4. MUNDO GIGANTE Y ÁRBOLES DETALLADOS ---
-        const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-        for (let x = -40; x < 40; x++) {
-            for (let z = -40; z < 40; z++) {
-                const block = new THREE.Mesh(boxGeo, grassMaterials);
-                block.position.set(x, 0, z);
-                scene.add(block);
+        // --- 4. FUNCIÓN PARA ALTURA DEL TERRENO ---
+        function getTerrainHeight(x, z) {
+            // Crea colinas onduladas matemáticas
+            return Math.floor(Math.sin(x / 6) * 1.5 + Math.cos(z / 6) * 1.5);
+        }
 
-                // Generar árboles (probabilidad ajustada para no saturar)
-                if (Math.random() > 0.99) { 
-                    const trunkHeight = 4 + Math.floor(Math.random() * 3); // Troncos de 4 a 6 de altura
-                    
-                    // Construir tronco
+        // --- 5. MUNDO CON CAPAS ---
+        const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+        for (let x = -30; x < 30; x++) {
+            for (let z = -30; z < 30; z++) {
+                const surfaceY = getTerrainHeight(x, z);
+
+                // Generar 3 capas de profundidad
+                for (let y = surfaceY - 2; y <= surfaceY; y++) {
+                    const isTopLayer = (y === surfaceY);
+                    // Si es la capa más alta usa césped, si no, usa solo tierra
+                    const block = new THREE.Mesh(boxGeo, isTopLayer ? grassMaterials : dirtMat);
+                    block.position.set(x, y, z);
+                    scene.add(block);
+                }
+
+                // Generar árboles en la superficie
+                if (Math.random() > 0.985) { 
+                    const trunkHeight = 4 + Math.floor(Math.random() * 3);
                     for(let i=1; i<=trunkHeight; i++) {
                         const trunk = new THREE.Mesh(boxGeo, woodMat);
-                        trunk.position.set(x, i, z);
+                        trunk.position.set(x, surfaceY + i, z);
                         scene.add(trunk);
                     }
-                    
-                    // Construir copa de hojas grande
                     for(let y = trunkHeight - 2; y <= trunkHeight + 1; y++) {
-                        let radius = (y === trunkHeight + 1) ? 1 : 2; // Las capas altas son más estrechas
-                        
+                        let radius = (y === trunkHeight + 1) ? 1 : 2;
                         for(let lx = -radius; lx <= radius; lx++) {
                             for(let lz = -radius; lz <= radius; lz++) {
-                                // Redondear esquinas para que no sea un cuadrado perfecto
-                                if (Math.abs(lx) === radius && Math.abs(lz) === radius && (y === trunkHeight + 1 || y === trunkHeight - 2 || Math.random() > 0.5)) {
-                                    continue;
-                                }
-                                // Evitar poner hojas dentro del tronco
+                                if (Math.abs(lx) === radius && Math.abs(lz) === radius && (y === trunkHeight + 1 || y === trunkHeight - 2 || Math.random() > 0.5)) continue;
                                 if (lx === 0 && lz === 0 && y <= trunkHeight) continue;
-
                                 const leaf = new THREE.Mesh(boxGeo, leafMat);
-                                leaf.position.set(x+lx, y, z+lz);
+                                leaf.position.set(x+lx, surfaceY + y, z+lz);
                                 scene.add(leaf);
                             }
                         }
@@ -137,20 +135,18 @@
             }
         }
 
-        // --- 5. ANIMAL (CERDITO) ---
+        // --- 6. ANIMAL ---
         function createPig() {
             const group = new THREE.Group();
             const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.7, 1.2), pigMat);
             body.position.y = 0.65;
             const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), pigMat);
             head.position.set(0, 1.0, 0.7);
-            
             const eye = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), new THREE.MeshBasicMaterial({color: 0x000000}));
             const eyeL = eye.clone(); eyeL.position.set(0.2, 1.15, 1.0);
             const eyeR = eye.clone(); eyeR.position.set(-0.2, 1.15, 1.0);
             const snout = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.1), new THREE.MeshLambertMaterial({color: 0xffa0b0}));
             snout.position.set(0, 0.95, 1.0);
-
             group.add(body, head, eyeL, eyeR, snout);
             for(let i=0; i<4; i++) {
                 const leg = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.4, 0.25), pigMat);
@@ -163,8 +159,8 @@
         scene.add(pig);
         pig.position.set(4, 0, 4);
 
-        // --- 6. CONTROLES ---
-        camera.position.set(0, 2, 8);
+        // --- 7. CONTROLES ---
+        camera.position.set(0, 5, 8);
         let move = { f: false, b: false, l: false, r: false };
         let yaw = 0, pitch = 0, lastX = 0, lastY = 0;
 
@@ -191,7 +187,7 @@
             }
         }, {passive: false});
 
-        // --- 7. AJUSTE DE PANTALLA ---
+        // --- 8. AJUSTE DE PANTALLA ---
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
@@ -200,7 +196,7 @@
         window.addEventListener('resize', onWindowResize);
         window.addEventListener('orientationchange', () => setTimeout(onWindowResize, 200));
 
-        // --- 8. ANIMACIÓN ---
+        // --- 9. ANIMACIÓN Y FÍSICAS ---
         function animate() {
             requestAnimationFrame(animate);
             camera.rotation.order = "YXZ";
@@ -212,11 +208,23 @@
             if (move.b) camera.translateZ(speed);
             if (move.l) camera.translateX(-speed);
             if (move.r) camera.translateX(speed);
-            camera.position.y = 1.8;
 
+            // Gravedad dinámica para el jugador (caminar por colinas)
+            const playerGridX = Math.round(camera.position.x);
+            const playerGridZ = Math.round(camera.position.z);
+            const targetCamY = getTerrainHeight(playerGridX, playerGridZ) + 1.8;
+            // Interpolar (suavizar) la subida/bajada de la cámara
+            camera.position.y += (targetCamY - camera.position.y) * 0.15;
+
+            // Gravedad dinámica para el cerdito
             pig.position.z += 0.03;
-            if (pig.position.z > 35) pig.position.z = -35;
+            if (pig.position.z > 25) pig.position.z = -25;
             pig.rotation.y += 0.005;
+            
+            const pigGridX = Math.round(pig.position.x);
+            const pigGridZ = Math.round(pig.position.z);
+            const targetPigY = getTerrainHeight(pigGridX, pigGridZ);
+            pig.position.y += (targetPigY - pig.position.y) * 0.2;
 
             renderer.render(scene, camera);
         }
