@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mini Terraria - Actualizado</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #7EC0EE; /* Cielo azul claro Terraria */
+            touch-action: none;
+            font-family: 'Courier New', Courier, monospace;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        canvas { display: block; }
+        
+        /* Controles táctiles */
+        #controls {
+            position: absolute;
+            bottom: 30px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-sizing: border-box;
+            pointer-events: none;
+        }
+        .btn-group { display: flex; gap: 15px; pointer-events: auto; }
+        .btn {
+            background-color: rgba(255, 255, 255, 0.4);
+            border: 2px solid #fff;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 28px;
+            font-weight: bold;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .btn:active { background-color: rgba(255, 255, 255, 0.8); }
+
+        /* Botón de Música */
+        #musicBtn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: 2px solid white;
+            border-radius: 20px;
+            font-size: 16px;
+            pointer-events: auto;
+        }
+        #musicBtn:active { background-color: rgba(0, 0, 0, 0.8); }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="musicBtn" onclick="toggleMusic()">🎵 Reproducir Música</div>
+
+    <div id="controls">
+        <div class="btn-group">
+            <div class="btn" id="btnLeft">←</div>
+            <div class="btn" id="btnRight">→</div>
+        </div>
+        <div class="btn-group">
+            <div class="btn" id="btnJump">↑</div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const tileSize = 32;
+        const mapWidth = 80;
+        const mapHeight = 30;
+        let map = [];
+
+        // Generar Mundo
+        function generateWorld() {
+            // Capa base de terreno
+            for (let y = 0; y < mapHeight; y++) {
+                map[y] = [];
+                for (let x = 0; x < mapWidth; x++) {
+                    if (y > 15) {
+                        map[y][x] = 1; // Tierra
+                    } else if (y === 15) {
+                        map[y][x] = 2; // Pasto
+                    } else {
+                        map[y][x] = 0; // Aire
+                    }
+                }
+            }
+
+            // Generar colinas simples y árboles
+            for (let x = 2; x < mapWidth - 2; x++) {
+                // Árboles
+                if (Math.random() < 0.15) {
+                    let treeHeight = Math.floor(Math.random() * 4) + 4; // Altura del tronco 4-7
+                    let base = 14;
+                    
+                    // Tronco
+                    for (let i = 0; i < treeHeight; i++) {
+                        map[base - i][x] = 3;
+                    }
+                    // Hojas frondosas (3x3 cruz)
+                    let top = base - treeHeight;
+                    map[top][x] = 4;
+                    map[top][x-1] = 4; map[top][x+1] = 4;
+                    map[top-1][x] = 4; map[top-1][x-1] = 4; map[top-1][x+1] = 4;
+                    map[top-2][x] = 4;
+                    
+                    x += 3; // Dejar espacio entre árboles
+                }
+            }
+        }
+
+        // Jugador estilo Terraria
+        const player = {
+            x: 100,
+            y: 100,
+            width: 20,
+            height: 32,
+            vx: 0,
+            vy: 0,
+            speed: 3.5,
+            jumpPower: -10,
+            grounded: false
+        };
+
+        const camera = { x: 0, y: 0 };
+        const keys = { left: false, right: false, up: false };
+
+        function checkCollision(x, y) {
+            let tx = Math.floor(x / tileSize);
+            let ty = Math.floor(y / tileSize);
+            if (tx < 0 || tx >= mapWidth || ty < 0 || ty >= mapHeight) return true;
+            // Bloques 1 (Tierra) y 2 (Pasto) tienen colisión. 3 y 4 (Árboles) se pueden atravesar.
+            return map[ty][tx] === 1 || map[ty][tx] === 2;
+        }
+
+        function update() {
+            if (keys.left) player.vx = -player.speed;
+            else if (keys.right) player.vx = player.speed;
+            else player.vx = 0;
+
+            player.x += player.vx;
+
+            if (player.vx > 0 && (checkCollision(player.x + player.width, player.y) || checkCollision(player.x + player.width, player.y + player.height - 1))) {
+                player.x = Math.floor((player.x + player.width) / tileSize) * tileSize - player.width;
+            } else if (player.vx < 0 && (checkCollision(player.x, player.y) || checkCollision(player.x, player.y + player.height - 1))) {
+                player.x = Math.floor(player.x / tileSize) * tileSize + tileSize;
+            }
+
+            player.vy += 0.6; // Gravedad
+            player.y += player.vy;
+            player.grounded = false;
+
+            if (player.vy > 0 && (checkCollision(player.x, player.y + player.height) || checkCollision(player.x + player.width - 1, player.y + player.height))) {
+                player.y = Math.floor((player.y + player.height) / tileSize) * tileSize - player.height;
+                player.vy = 0;
+                player.grounded = true;
+            } else if (player.vy < 0 && (checkCollision(player.x, player.y) || checkCollision(player.x + player.width - 1, player.y))) {
+                player.y = Math.floor(player.y / tileSize) * tileSize + tileSize;
+                player.vy = 0;
+            }
+
+            if (keys.up && player.grounded) {
+                player.vy = player.jumpPower;
+            }
+
+            camera.x = player.x - canvas.width / 2 + player.width / 2;
+            camera.y = player.y - canvas.height / 2 + player.height / 2;
+            camera.x = Math.max(0, Math.min(camera.x, mapWidth * tileSize - canvas.width));
+            camera.y = Math.max(0, Math.min(camera.y, mapHeight * tileSize - canvas.height));
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            let startCol = Math.floor(camera.x / tileSize);
+            let endCol = startCol + (canvas.width / tileSize) + 1;
+            let startRow = Math.floor(camera.y / tileSize);
+            let endRow = startRow + (canvas.height / tileSize) + 1;
+
+            // Dibujar mapa con gráficos mejorados
+            for (let y = startRow; y < endRow; y++) {
+                for (let x = startCol; x < endCol; x++) {
+                    if (y >= 0 && y < mapHeight && x >= 0 && x < mapWidth) {
+                        let block = map[y][x];
+                        let px = Math.floor(x * tileSize - camera.x);
+                        let py = Math.floor(y * tileSize - camera.y);
+
+                        if (block === 1) { 
+                            // 🟫 Tierra con textura
+                            ctx.fillStyle = '#5c3a21'; // Marrón base
+                            ctx.fillRect(px, py, tileSize, tileSize);
+                            ctx.fillStyle = '#4a2e1a'; // Puntos oscuros
+                            ctx.fillRect(px + 4, py + 4, 6, 6);
+                            ctx.fillRect(px + 20, py + 18, 5, 5);
+                        } 
+                        else if (block === 2) { 
+                            // 🟩 Pasto estilo Terraria (Tierra + Capa Verde + Hojitas)
+                            ctx.fillStyle = '#5c3a21'; // Base tierra
+                            ctx.fillRect(px, py, tileSize, tileSize);
+                            ctx.fillStyle = '#32CD32'; // Capa de pasto
+                            ctx.fillRect(px, py, tileSize, 10);
+                            
+                            // Dibujar hojitas de pasto que salen hacia arriba
+                            let numBlades = (x % 3) + 2; 
+                            for(let i=0; i<numBlades; i++) {
+                                let bx = px + ((i * 10 + (y%2)*4) % tileSize);
+                                ctx.fillRect(bx, py - 6, 3, 6);
+                            }
+                        } 
+                        else if (block === 3) { 
+                            // 🪵 Tronco del árbol
+                            ctx.fillStyle = '#5c4033'; // Madera
+                            ctx.fillRect(px + 10, py, 12, tileSize);
+                            ctx.fillStyle = '#3b281f'; // Corteza
+                            ctx.fillRect(px + 12, py, 2, tileSize);
+                            ctx.fillRect(px + 18, py, 2, tileSize);
+                        } 
+                        else if (block === 4) { 
+                            // 🌳 Hojas del árbol (redondeadas y frondosas)
+                            ctx.fillStyle = 'rgba(34, 139, 34, 0.95)';
+                            ctx.beginPath();
+                            ctx.arc(px + 16, py + 16, 22, 0, Math.PI*2);
+                            ctx.fill();
+                            ctx.fillStyle = 'rgba(50, 205, 50, 0.5)'; // Brillo sutil
+                            ctx.beginPath();
+                            ctx.arc(px + 12, py + 12, 10, 0, Math.PI*2);
+                            ctx.fill();
+                        }
+                    }
+                }
+            }
+
+            // Dibujar Jugador
+            let pDrawX = Math.floor(player.x - camera.x);
+            let pDrawY = Math.floor(player.y - camera.y);
+            
+            ctx.fillStyle = '#FFC0CB'; // Cabeza (piel)
+            ctx.fillRect(pDrawX + 2, pDrawY, 16, 10);
+            ctx.fillStyle = '#4169E1'; // Torso (Camisa azul)
+            ctx.fillRect(pDrawX, pDrawY + 10, 20, 14);
+            ctx.fillStyle = '#8B4513'; // Piernas (Pantalones marrones)
+            ctx.fillRect(pDrawX + 2, pDrawY + 24, 6, 8); // Pierna izq
+            ctx.fillRect(pDrawX + 12, pDrawY + 24, 6, 8); // Pierna der
+        }
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        // --- CONTROLES MÓVILES ---
+        function addTouchEvents(element, key) {
+            element.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = true; });
+            element.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = false; });
+        }
+        addTouchEvents(document.getElementById('btnLeft'), 'left');
+        addTouchEvents(document.getElementById('btnRight'), 'right');
+        addTouchEvents(document.getElementById('btnJump'), 'up');
+
+        // --- SISTEMA DE MÚSICA 8-BIT ESTILO TERRARIA ---
+        let audioCtx;
+        let musicInterval;
+        let isPlaying = false;
+        // Escala de notas alegres (Aventura)
+        const notes = [329.6, 392.0, 440.0, 523.2, 440.0, 392.0, 329.6, 261.6];
+        let noteIndex = 0;
+
+        function toggleMusic() {
+            const btn = document.getElementById('musicBtn');
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+            if (isPlaying) {
+                clearInterval(musicInterval);
+                isPlaying = false;
+                btn.innerText = '🎵 Reproducir Música';
+            } else {
+                audioCtx.resume();
+                isPlaying = true;
+                btn.innerText = '🔇 Detener Música';
+                
+                // Bucle de música chiptune
+                musicInterval = setInterval(() => {
+                    let osc = audioCtx.createOscillator();
+                    let gain = audioCtx.createGain();
+                    
+                    osc.type = 'square'; // Onda cuadrada para sonar a consola antigua
+                    osc.frequency.value = notes[noteIndex % notes.length];
+                    noteIndex++;
+                    
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    
+                    // Efecto de decaimiento del sonido
+                    gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+                    
+                    osc.start(audioCtx.currentTime);
+                    osc.stop(audioCtx.currentTime + 0.2);
+                }, 200); // Velocidad del tempo
+            }
+        }
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        generateWorld();
+        loop();
+    </script>
+</body>
+</html>
