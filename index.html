@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Minecraft Mobile: Capas y Colinas</title>
+    <style>
+        body { 
+            margin: 0; padding: 0; overflow: hidden; touch-action: none; 
+            background: #87CEEB; position: fixed; width: 100%; height: 100%; font-family: sans-serif;
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+        #controles {
+            position: absolute; bottom: 100px; left: 30px;
+            display: grid; grid-template-columns: repeat(3, 60px); grid-template-rows: repeat(2, 60px); gap: 10px; z-index: 10;
+        }
+        .btn {
+            width: 60px; height: 60px; background: rgba(0,0,0,0.5);
+            border: 2px solid #fff; border-radius: 15px;
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 28px; user-select: none; -webkit-user-select: none;
+        }
+        #btn-up { grid-column: 2; }
+        #btn-left { grid-column: 1; grid-row: 2; }
+        #btn-down { grid-column: 2; grid-row: 2; }
+        #btn-right { grid-column: 3; grid-row: 2; }
+
+        /* --- INVENTARIO ESTILO MINECRAFT --- */
+        #inventario {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 6px;
+            z-index: 20;
+            background: rgba(60, 60, 60, 0.8);
+            padding: 8px 16px;
+            border-radius: 12px;
+            border: 3px solid #1a1a1a;
+            box-shadow: 0 4px 0 #0a0a0a;
+            backdrop-filter: blur(2px);
+        }
+        .slot {
+            width: 56px;
+            height: 56px;
+            background: #8b8b8b;
+            border: 3px solid #1a1a1a;
+            border-bottom: 5px solid #0a0a0a;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            image-rendering: pixelated;
+            box-shadow: inset 0 -2px 0 #5a5a5a, inset 0 2px 0 #b0b0b0;
+            color: white;
+            text-shadow: 2px 2px 0 #1a1a1a;
+            transition: transform 0.05s;
+        }
+        .slot.seleccionado {
+            transform: scale(1.1);
+            border-color: #fff;
+            box-shadow: 0 0 0 3px rgba(255,255,255,0.5), inset 0 -2px 0 #5a5a5a;
+        }
+        .slot.vacio {
+            background: #6b6b6b;
+            opacity: 0.8;
+        }
+        /* Crucecita para quitar bloque (modo creativo) */
+        #clear-slot {
+            position: absolute;
+            bottom: 90px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            background: rgba(180, 40, 40, 0.8);
+            border: 3px solid #1a1a1a;
+            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 28px;
+            z-index: 15;
+            box-shadow: 0 4px 0 #600;
+            border-bottom: 5px solid #400;
+            user-select: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="controles">
+        <div class="btn" id="btn-up">↑</div>
+        <div class="btn" id="btn-left">←</div>
+        <div class="btn" id="btn-down">↓</div>
+        <div class="btn" id="btn-right">→</div>
+    </div>
+
+    <!-- Botón para quitar bloque de la mano -->
+    <div id="clear-slot">✕</div>
+
+    <!-- INVENTARIO -->
+    <div id="inventario">
+        <div class="slot" data-index="0" data-block="grass">🌿</div>
+        <div class="slot" data-index="1" data-block="dirt">🟫</div>
+        <div class="slot" data-index="2" data-block="wood">🪵</div>
+        <div class="slot" data-index="3" data-block="leaf">🍃</div>
+        <div class="slot seleccionado" data-index="4" data-block="grass">🌿</div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'https://cdn.skypack.dev/three@0.132.2';
+
+        // --- 1. ESCENA ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        scene.fog = new THREE.Fog(0x87CEEB, 10, 40);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: false });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const light = new THREE.DirectionalLight(0xffffff, 1.2);
+        light.position.set(10, 20, 10);
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+
+        // --- 2. TEXTURAS ---
+        function createPixelTexture(r, g, b, noiseRange = 25, size = 16, detail = false) {
+            const canvas = document.createElement('canvas');
+            canvas.width = size; canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            for(let x=0; x<size; x++) {
+                for(let y=0; y<size; y++) {
+                    let n = Math.random() * noiseRange;
+                    let pr = r - n, pg = g - n, pb = b - n;
+                    if (detail && Math.random() > 0.85) { pr = r + 30; pg = g + 40; pb = b; }
+                    ctx.fillStyle = `rgb(${pr}, ${pg}, ${pb})`;
+                    ctx.fillRect(x, y, 1, 1);
+                }
+            }
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.magFilter = THREE.NearestFilter;
+            tex.minFilter = THREE.NearestFilter;
+            return tex;
+        }
+
+        const grassTex = createPixelTexture(90, 170, 60, 30, 32, true); 
+        const dirtTex = createPixelTexture(120, 85, 50);
+        const woodTex = createPixelTexture(95, 65, 40);
+        const leafTex = createPixelTexture(50, 120, 40, 20, 16, true);
+        const pigTex = createPixelTexture(255, 180, 190, 15);
+
+        // --- 3. MATERIALES ---
+        const dirtMat = new THREE.MeshLambertMaterial({map: dirtTex});
+        const grassMatSides = new THREE.MeshLambertMaterial({map: dirtTex});
+        const grassMatTop = new THREE.MeshLambertMaterial({map: grassTex});
+        const grassMaterials = [grassMatSides, grassMatSides, grassMatTop, grassMatSides, grassMatSides, grassMatSides];
+        
+        const woodMat = new THREE.MeshLambertMaterial({map: woodTex});
+        const leafMat = new THREE.MeshLambertMaterial({map: leafTex});
+        const pigMat = new THREE.MeshLambertMaterial({map: pigTex});
+
+        // Mapa para materiales según tipo de bloque
+        function getMaterialForBlock(blockType) {
+            switch(blockType) {
+                case 'grass': return grassMaterials;
+                case 'dirt': return dirtMat;
+                case 'wood': return woodMat;
+                case 'leaf': return leafMat;
+                default: return dirtMat;
+            }
+        }
+
+        // --- 4. FUNCIÓN PARA ALTURA DEL TERRENO ---
+        function getTerrainHeight(x, z) {
+            return Math.floor(Math.sin(x / 6) * 1.5 + Math.cos(z / 6) * 1.5);
+        }
+
+        // --- 5. MUNDO CON CAPAS (Almacenamos referencia a los bloques para modificarlos) ---
+        const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+        const worldBlocks = new Map(); // "x,y,z" -> mesh
+        
+        for (let x = -30; x < 30; x++) {
+            for (let z = -30; z < 30; z++) {
+                const surfaceY = getTerrainHeight(x, z);
+
+                for (let y = surfaceY - 2; y <= surfaceY; y++) {
+                    const isTopLayer = (y === surfaceY);
+                    const blockType = isTopLayer ? 'grass' : 'dirt';
+                    const material = isTopLayer ? grassMaterials : dirtMat;
+                    const block = new THREE.Mesh(boxGeo, material);
+                    block.position.set(x, y, z);
+                    block.userData.type = blockType;
+                    scene.add(block);
+                    worldBlocks.set(`${x},${y},${z}`, block);
+                }
+
+                // Árboles (simplificados, no los metemos en worldBlocks para no romper)
+                if (Math.random() > 0.985) { 
+                    const trunkHeight = 4 + Math.floor(Math.random() * 3);
+                    for(let i=1; i<=trunkHeight; i++) {
+                        const trunk = new THREE.Mesh(boxGeo, woodMat);
+                        trunk.position.set(x, surfaceY + i, z);
+                        trunk.userData.type = 'wood';
+                        scene.add(trunk);
+                        worldBlocks.set(`${x},${surfaceY + i},${z}`, trunk);
+                    }
+                    for(let y = trunkHeight - 2; y <= trunkHeight + 1; y++) {
+                        let radius = (y === trunkHeight + 1) ? 1 : 2;
+                        for(let lx = -radius; lx <= radius; lx++) {
+                            for(let lz = -radius; lz <= radius; lz++) {
+                                if (Math.abs(lx) === radius && Math.abs(lz) === radius && (y === trunkHeight + 1 || y === trunkHeight - 2 || Math.random() > 0.5)) continue;
+                                if (lx === 0 && lz === 0 && y <= trunkHeight) continue;
+                                const leaf = new THREE.Mesh(boxGeo, leafMat);
+                                leaf.position.set(x+lx, surfaceY + y, z+lz);
+                                leaf.userData.type = 'leaf';
+                                scene.add(leaf);
+                                worldBlocks.set(`${x+lx},${surfaceY + y},${z+lz}`, leaf);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- 6. ANIMAL ---
+        function createPig() {
+            const group = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.7, 1.2), pigMat);
+            body.position.y = 0.65;
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), pigMat);
+            head.position.set(0, 1.0, 0.7);
+            const eye = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), new THREE.MeshBasicMaterial({color: 0x000000}));
+            const eyeL = eye.clone(); eyeL.position.set(0.2, 1.15, 1.0);
+            const eyeR = eye.clone(); eyeR.position.set(-0.2, 1.15, 1.0);
+            const snout = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.1), new THREE.MeshLambertMaterial({color: 0xffa0b0}));
+            snout.position.set(0, 0.95, 1.0);
+            group.add(body, head, eyeL, eyeR, snout);
+            for(let i=0; i<4; i++) {
+                const leg = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.4, 0.25), pigMat);
+                leg.position.set(i<2?0.25:-0.25, 0.2, i%2?0.35:-0.35);
+                group.add(leg);
+            }
+            return group;
+        }
+        const pig = createPig();
+        scene.add(pig);
+        pig.position.set(4, 0, 4);
+
+        // --- 7. CONTROLES ---
+        camera.position.set(0, 5, 8);
+        let move = { f: false, b: false, l: false, r: false };
+        let yaw = 0, pitch = 0, lastX = 0, lastY = 0;
+
+        const setupBtn = (id, dir) => {
+            const btn = document.getElementById(id);
+            btn.addEventListener('touchstart', (e) => { e.preventDefault(); move[dir] = true; });
+            btn.addEventListener('touchend', (e) => { e.preventDefault(); move[dir] = false; });
+        };
+        setupBtn('btn-up', 'f'); setupBtn('btn-down', 'b'); setupBtn('btn-left', 'l'); setupBtn('btn-right', 'r');
+
+        document.addEventListener('touchstart', e => {
+            if(e.touches[0].target.tagName === 'CANVAS') {
+                lastX = e.touches[0].pageX; lastY = e.touches[0].pageY;
+            }
+        }, {passive: false});
+
+        document.addEventListener('touchmove', e => {
+            if(e.touches[0].target.tagName === 'CANVAS') {
+                const sensitivity = 0.006;
+                yaw -= (e.touches[0].pageX - lastX) * sensitivity;
+                pitch -= (e.touches[0].pageY - lastY) * sensitivity;
+                pitch = Math.max(-1.4, Math.min(1.4, pitch));
+                lastX = e.touches[0].pageX; lastY = e.touches[0].pageY;
+            }
+        }, {passive: false});
+
+        // --- 8. SISTEMA DE INVENTARIO Y COLOCACIÓN/ELIMINACIÓN ---
+        let selectedBlockType = 'grass'; // tipo actual
+        const slots = document.querySelectorAll('.slot');
+        
+        // Selección de slot
+        slots.forEach(slot => {
+            slot.addEventListener('click', () => {
+                slots.forEach(s => s.classList.remove('seleccionado'));
+                slot.classList.add('seleccionado');
+                selectedBlockType = slot.dataset.block;
+            });
+        });
+
+        // Botón para quitar bloque de la mano (poner "mano vacía")
+        document.getElementById('clear-slot').addEventListener('click', () => {
+            slots.forEach(s => s.classList.remove('seleccionado'));
+            selectedBlockType = null;
+        });
+
+        // Raycaster para colocar/eliminar bloques
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2();
+        
+        renderer.domElement.addEventListener('touchstart', (e) => {
+            // Solo si no tocamos botones (evitamos conflicto)
+            if (e.target.tagName !== 'CANVAS') return;
+            e.preventDefault();
+            
+            const touch = e.touches[0];
+            pointer.x = (touch.clientX / renderer.domElement.clientWidth) * 2 - 1;
+            pointer.y = -(touch.clientY / renderer.domElement.clientHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(pointer, camera);
+            
+            // Buscar todos los bloques del mundo
+            const meshes = Array.from(worldBlocks.values());
+            const intersects = raycaster.intersectObjects(meshes);
+            
+            if (intersects.length > 0) {
+                const intersect = intersects[0];
+                const block = intersect.object;
+                
+                if (selectedBlockType === null) {
+                    // Modo eliminar: si no hay bloque seleccionado, rompemos el bloque
+                    const pos = block.position;
+                    const key = `${pos.x},${pos.y},${pos.z}`;
+                    worldBlocks.delete(key);
+                    scene.remove(block);
+                } else {
+                    // Modo colocar: poner bloque en la cara adyacente
+                    const normal = intersect.face.normal;
+                    const placePos = block.position.clone().add(normal);
+                    
+                    // Verificar que no haya ya un bloque ahí
+                    const key = `${placePos.x},${placePos.y},${placePos.z}`;
+                    if (!worldBlocks.has(key)) {
+                        const material = getMaterialForBlock(selectedBlockType);
+                        const newBlock = new THREE.Mesh(boxGeo, material);
+                        newBlock.position.copy(placePos);
+                        newBlock.userData.type = selectedBlockType;
+                        scene.add(newBlock);
+                        worldBlocks.set(key, newBlock);
+                    }
+                }
+            }
+        }, {passive: false});
+
+        // --- 9. AJUSTE DE PANTALLA ---
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        window.addEventListener('resize', onWindowResize);
+        window.addEventListener('orientationchange', () => setTimeout(onWindowResize, 200));
+
+        // --- 10. ANIMACIÓN Y FÍSICAS ---
+        function animate() {
+            requestAnimationFrame(animate);
+            camera.rotation.order = "YXZ";
+            camera.rotation.y = yaw;
+            camera.rotation.x = pitch;
+
+            const speed = 0.15;
+            if (move.f) camera.translateZ(-speed);
+            if (move.b) camera.translateZ(speed);
+            if (move.l) camera.translateX(-speed);
+            if (move.r) camera.translateX(speed);
+
+            const playerGridX = Math.round(camera.position.x);
+            const playerGridZ = Math.round(camera.position.z);
+            const targetCamY = getTerrainHeight(playerGridX, playerGridZ) + 1.8;
+            camera.position.y += (targetCamY - camera.position.y) * 0.15;
+
+            pig.position.z += 0.03;
+            if (pig.position.z > 25) pig.position.z = -25;
+            pig.rotation.y += 0.005;
+            
+            const pigGridX = Math.round(pig.position.x);
+            const pigGridZ = Math.round(pig.position.z);
+            const targetPigY = getTerrainHeight(pigGridX, pigGridZ);
+            pig.position.y += (targetPigY - pig.position.y) * 0.2;
+
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>
