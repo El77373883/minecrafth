@@ -3,250 +3,168 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Minecraft Mobile: Mundo Completo</title>
+    <title>Minecraft Mobile: Capas y Colinas</title>
     <style>
         body { 
             margin: 0; padding: 0; overflow: hidden; touch-action: none; 
-            background: #87CEEB; position: fixed; width: 100%; height: 100%; font-family: 'Courier New', monospace;
+            background: #87CEEB; position: fixed; width: 100%; height: 100%; font-family: sans-serif;
         }
         canvas { display: block; width: 100%; height: 100%; }
-        
-        #ui-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 5;
-        }
-        
         #controles {
-            position: absolute; 
-            bottom: 120px; 
-            left: 20px;
-            display: grid; 
-            grid-template-columns: repeat(3, 65px); 
-            grid-template-rows: repeat(2, 65px); 
-            gap: 8px; 
-            z-index: 10;
-            pointer-events: auto;
+            position: absolute; bottom: 100px; left: 30px;
+            display: grid; grid-template-columns: repeat(3, 60px); grid-template-rows: repeat(2, 60px); gap: 10px; z-index: 10;
         }
         .btn {
-            width: 65px; 
-            height: 65px; 
-            background: rgba(40, 40, 40, 0.7);
-            border: 3px solid #8b8b8b;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 32px;
-            font-weight: bold;
-            user-select: none;
-            -webkit-user-select: none;
-            box-shadow: 0 4px 0 #2a2a2a;
-            backdrop-filter: blur(4px);
-        }
-        .btn:active {
-            transform: translateY(2px);
-            box-shadow: 0 2px 0 #2a2a2a;
+            width: 60px; height: 60px; background: rgba(0,0,0,0.5);
+            border: 2px solid #fff; border-radius: 15px;
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 28px; user-select: none; -webkit-user-select: none;
         }
         #btn-up { grid-column: 2; }
         #btn-left { grid-column: 1; grid-row: 2; }
         #btn-down { grid-column: 2; grid-row: 2; }
         #btn-right { grid-column: 3; grid-row: 2; }
 
-        /* Mano del jugador (estilo Minecraft) */
+        /* Mano del jugador */
         #player-hand {
             position: absolute;
-            bottom: 20px;
-            right: 20px;
-            width: 120px;
-            height: 120px;
-            pointer-events: none;
-            z-index: 8;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            image-rendering: pixelated;
-        }
-        #hand-block {
+            bottom: 30px;
+            right: 30px;
             width: 80px;
             height: 80px;
-            background: #8b8b8b;
-            border: 4px solid #1a1a1a;
-            border-bottom: 8px solid #0a0a0a;
-            border-radius: 8px;
+            background: rgba(0,0,0,0.5);
+            border: 3px solid #fff;
+            border-radius: 15px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 48px;
-            box-shadow: inset 0 -4px 0 #5a5a5a, inset 0 4px 0 #b0b0b0;
-            transform: rotate(-10deg);
-            image-rendering: pixelated;
+            font-size: 40px;
+            z-index: 15;
+            pointer-events: none;
         }
 
-        /* Botón de inventario */
-        #inventory-btn {
+        /* Barra de inventario rápido */
+        #hotbar {
             position: absolute;
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            width: 70px;
-            height: 70px;
-            background: rgba(60, 60, 60, 0.9);
-            border: 3px solid #8b8b8b;
+            display: flex;
+            gap: 8px;
+            z-index: 20;
+            background: rgba(60, 60, 60, 0.8);
+            padding: 8px 16px;
             border-radius: 12px;
+            border: 3px solid #1a1a1a;
+            pointer-events: auto;
+        }
+        .slot {
+            width: 60px;
+            height: 60px;
+            background: #8b8b8b;
+            border: 3px solid #1a1a1a;
+            border-bottom: 5px solid #0a0a0a;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            color: white;
+            text-shadow: 2px 2px 0 #1a1a1a;
+        }
+        .slot span {
+            font-size: 14px;
+            margin-top: -5px;
+        }
+        .slot.seleccionado {
+            transform: scale(1.1);
+            border-color: #fff;
+            box-shadow: 0 0 0 3px rgba(255,255,255,0.5);
+        }
+
+        #inventory-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            background: rgba(60, 60, 60, 0.8);
+            border: 3px solid #fff;
+            border-radius: 15px;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
-            font-size: 28px;
+            font-size: 30px;
             z-index: 25;
             pointer-events: auto;
-            box-shadow: 0 4px 0 #2a2a2a;
-            backdrop-filter: blur(4px);
-        }
-        #inventory-btn:active {
-            transform: translateX(-50%) translateY(2px);
-            box-shadow: 0 2px 0 #2a2a2a;
         }
 
-        /* Panel de inventario (oculto por defecto) */
         #inventory-panel {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             width: 90%;
-            max-width: 400px;
-            background: rgba(198, 198, 198, 0.95);
+            max-width: 350px;
+            background: #c6c6c6;
             border: 4px solid #1a1a1a;
             border-radius: 8px;
             padding: 20px;
             z-index: 30;
-            pointer-events: auto;
             display: none;
-            box-shadow: 0 8px 0 #0a0a0a;
-            backdrop-filter: blur(8px);
+            pointer-events: auto;
         }
         #inventory-panel.active {
             display: block;
         }
-        .inventory-title {
-            color: #3a3a3a;
-            font-size: 20px;
-            font-weight: bold;
-            margin-bottom: 15px;
-            text-align: center;
-        }
-        .inventory-grid {
+        .inv-grid {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 8px;
-            margin-bottom: 20px;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin: 15px 0;
         }
-        .inv-slot {
+        .inv-item {
             aspect-ratio: 1;
             background: #8b8b8b;
             border: 3px solid #1a1a1a;
-            border-bottom: 5px solid #0a0a0a;
             border-radius: 6px;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            font-size: 28px;
-            box-shadow: inset 0 -2px 0 #5a5a5a;
+            font-size: 24px;
             color: white;
-            text-shadow: 2px 2px 0 #1a1a1a;
         }
-        .inv-slot.selected {
-            border-color: #fff;
-            box-shadow: 0 0 0 3px rgba(255,255,255,0.5), inset 0 -2px 0 #5a5a5a;
-        }
-        .inventory-close {
+        .close-btn {
             width: 100%;
             padding: 12px;
             background: #d04444;
-            border: 3px solid #1a1a1a;
-            border-bottom: 5px solid #6b2020;
+            border: none;
             border-radius: 6px;
             color: white;
             font-size: 18px;
             font-weight: bold;
-            text-align: center;
-            box-shadow: inset 0 -2px 0 #a03030;
-        }
-
-        /* Barra de vida y hambre */
-        #stats {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            display: flex;
-            gap: 20px;
-            z-index: 15;
-            pointer-events: none;
-        }
-        .stat-bar {
-            display: flex;
-            gap: 4px;
-            background: rgba(0,0,0,0.5);
-            padding: 6px 10px;
-            border-radius: 20px;
-            backdrop-filter: blur(4px);
-        }
-        .heart {
-            color: #ff4444;
-            font-size: 24px;
-            text-shadow: 2px 2px 0 #8b0000;
-        }
-        .hunger {
-            color: #d4a044;
-            font-size: 24px;
-            text-shadow: 2px 2px 0 #8b6914;
         }
     </style>
 </head>
 <body>
 
-    <div id="ui-container">
-        <!-- Stats -->
-        <div id="stats">
-            <div class="stat-bar">
-                <span class="heart">❤️</span>
-                <span class="heart">❤️</span>
-                <span class="heart">❤️</span>
-                <span class="heart">❤️</span>
-                <span class="heart">❤️</span>
-            </div>
-            <div class="stat-bar">
-                <span class="hunger">🍗</span>
-                <span class="hunger">🍗</span>
-                <span class="hunger">🍗</span>
-                <span class="hunger">🍗</span>
-                <span class="hunger">🍗</span>
-            </div>
-        </div>
+    <div id="player-hand">🌿</div>
+    
+    <div id="inventory-btn">📦</div>
+    
+    <div id="inventory-panel">
+        <h3 style="margin:0 0 15px; text-align:center;">INVENTARIO</h3>
+        <div class="inv-grid" id="inv-grid"></div>
+        <div class="close-btn" id="close-inv">CERRAR</div>
+    </div>
 
-        <!-- Mano del jugador -->
-        <div id="player-hand">
-            <div id="hand-block">🌿</div>
-        </div>
-
-        <!-- Botón de inventario -->
-        <div id="inventory-btn">📦</div>
-
-        <!-- Panel de inventario -->
-        <div id="inventory-panel">
-            <div class="inventory-title">INVENTARIO</div>
-            <div class="inventory-grid" id="inventory-slots">
-                <!-- Se llenará con JS -->
-            </div>
-            <div class="inventory-close" id="close-inventory">CERRAR</div>
-        </div>
+    <div id="hotbar">
+        <div class="slot seleccionado" data-block="grass">🌿<span id="count-grass">64</span></div>
+        <div class="slot" data-block="dirt">🟫<span id="count-dirt">64</span></div>
+        <div class="slot" data-block="wood">🪵<span id="count-wood">0</span></div>
+        <div class="slot" data-block="leaf">🍃<span id="count-leaf">0</span></div>
     </div>
 
     <div id="controles">
@@ -262,36 +180,20 @@
         // --- 1. ESCENA ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87CEEB);
-        scene.fog = new THREE.Fog(0x87CEEB, 20, 60);
+        scene.fog = new THREE.Fog(0x87CEEB, 10, 40);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: false });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
 
-        // Luces
-        const sunLight = new THREE.DirectionalLight(0xfff5d1, 1.5);
-        sunLight.position.set(20, 30, 10);
-        sunLight.castShadow = true;
-        sunLight.receiveShadow = true;
-        sunLight.shadow.mapSize.width = 1024;
-        sunLight.shadow.mapSize.height = 1024;
-        const d = 30;
-        sunLight.shadow.camera.left = -d;
-        sunLight.shadow.camera.right = d;
-        sunLight.shadow.camera.top = d;
-        sunLight.shadow.camera.bottom = -d;
-        sunLight.shadow.camera.near = 1;
-        sunLight.shadow.camera.far = 50;
-        sunLight.shadow.bias = -0.001;
-        scene.add(sunLight);
-        
-        scene.add(new THREE.AmbientLight(0x404060, 0.5));
+        const light = new THREE.DirectionalLight(0xffffff, 1.2);
+        light.position.set(10, 20, 10);
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 
-        // --- 2. TEXTURAS Y MATERIALES ---
+        // --- 2. TEXTURAS ---
         function createPixelTexture(r, g, b, noiseRange = 25, size = 16) {
             const canvas = document.createElement('canvas');
             canvas.width = size; canvas.height = size;
@@ -299,9 +201,7 @@
             for(let x=0; x<size; x++) {
                 for(let y=0; y<size; y++) {
                     let n = Math.random() * noiseRange;
-                    let pr = Math.max(0, Math.min(255, r - n));
-                    let pg = Math.max(0, Math.min(255, g - n));
-                    let pb = Math.max(0, Math.min(255, b - n));
+                    let pr = r - n, pg = g - n, pb = b - n;
                     ctx.fillStyle = `rgb(${pr}, ${pg}, ${pb})`;
                     ctx.fillRect(x, y, 1, 1);
                 }
@@ -312,308 +212,168 @@
             return tex;
         }
 
-        // Texturas básicas
-        const grassTex = createPixelTexture(90, 170, 60, 30, 32);
-        const dirtTex = createPixelTexture(120, 85, 50, 20);
-        const woodTex = createPixelTexture(95, 65, 40, 20);
-        const leafTex = createPixelTexture(50, 140, 50, 20);
-        const sandTex = createPixelTexture(230, 210, 140, 15);
-        const snowTex = createPixelTexture(240, 250, 255, 10);
-        const stoneTex = createPixelTexture(120, 120, 120, 20);
-        const waterTex = createPixelTexture(50, 100, 220, 10, 16);
-        const lavaTex = createPixelTexture(255, 100, 0, 15);
+        const grassTex = createPixelTexture(90, 170, 60, 30, 32); 
+        const dirtTex = createPixelTexture(120, 85, 50);
+        const woodTex = createPixelTexture(95, 65, 40);
+        const leafTex = createPixelTexture(50, 120, 40, 20);
 
-        // Materiales
-        const grassMatTop = new THREE.MeshStandardMaterial({map: grassTex});
-        const grassMatSides = new THREE.MeshStandardMaterial({map: dirtTex});
+        // --- 3. MATERIALES ---
+        const dirtMat = new THREE.MeshLambertMaterial({map: dirtTex});
+        const grassMatSides = new THREE.MeshLambertMaterial({map: dirtTex});
+        const grassMatTop = new THREE.MeshLambertMaterial({map: grassTex});
         const grassMaterials = [grassMatSides, grassMatSides, grassMatTop, grassMatSides, grassMatSides, grassMatSides];
         
-        const dirtMat = new THREE.MeshStandardMaterial({map: dirtTex});
-        const woodMat = new THREE.MeshStandardMaterial({map: woodTex});
-        const leafMat = new THREE.MeshStandardMaterial({map: leafTex});
-        const sandMat = new THREE.MeshStandardMaterial({map: sandTex});
-        const snowMat = new THREE.MeshStandardMaterial({map: snowTex});
-        const stoneMat = new THREE.MeshStandardMaterial({map: stoneTex});
-        const waterMat = new THREE.MeshStandardMaterial({map: waterTex, transparent: true, opacity: 0.7});
-        const lavaMat = new THREE.MeshStandardMaterial({map: lavaTex, emissive: new THREE.Color(0xff4400), emissiveIntensity: 0.5});
+        const woodMat = new THREE.MeshLambertMaterial({map: woodTex});
+        const leafMat = new THREE.MeshLambertMaterial({map: leafTex});
 
-        // --- 3. BIOMAS Y GENERACIÓN DE TERRENO ---
-        function getBiome(x, z) {
-            const nx = x / 40;
-            const nz = z / 40;
-            const noise = Math.sin(nx * 2) * Math.cos(nz * 1.5) + Math.sin(nx * 0.5) * 0.5;
-            
-            if (Math.abs(x) < 10 && Math.abs(z) < 10) return 'plains';
-            if (noise > 0.3) return 'desert';
-            if (noise < -0.3) return 'snow';
-            return 'plains';
-        }
-
-        function getTerrainHeight(x, z) {
-            const biome = getBiome(x, z);
-            let h = Math.floor(Math.sin(x / 8) * 2 + Math.cos(z / 8) * 2);
-            
-            if (biome === 'desert') h += 1;
-            if (biome === 'snow') h += 2;
-            
-            return h;
-        }
-
-        function getSurfaceBlock(biome) {
-            switch(biome) {
-                case 'desert': return { mat: sandMat, type: 'sand' };
-                case 'snow': return { mat: snowMat, type: 'snow' };
-                default: return { mat: grassMaterials, type: 'grass' };
+        function getMaterialForBlock(blockType) {
+            switch(blockType) {
+                case 'grass': return grassMaterials;
+                case 'dirt': return dirtMat;
+                case 'wood': return woodMat;
+                case 'leaf': return leafMat;
+                default: return dirtMat;
             }
         }
 
-        // --- 4. MUNDO ---
+        // --- 4. FUNCIÓN PARA ALTURA DEL TERRENO ---
+        function getTerrainHeight(x, z) {
+            return Math.floor(Math.sin(x / 6) * 1.5 + Math.cos(z / 6) * 1.5);
+        }
+
+        // --- 5. MUNDO CON CAPAS ---
         const boxGeo = new THREE.BoxGeometry(1, 1, 1);
         const worldBlocks = new Map();
-        const waterBlocks = [];
         
-        for (let x = -40; x < 40; x++) {
-            for (let z = -40; z < 40; z++) {
-                const biome = getBiome(x, z);
+        for (let x = -30; x < 30; x++) {
+            for (let z = -30; z < 30; z++) {
                 const surfaceY = getTerrainHeight(x, z);
-                const surfaceBlock = getSurfaceBlock(biome);
 
-                // Capas de tierra/piedra
-                for (let y = surfaceY - 3; y <= surfaceY; y++) {
-                    let material, type;
-                    if (y === surfaceY) {
-                        material = surfaceBlock.mat;
-                        type = surfaceBlock.type;
-                    } else if (y > surfaceY - 2) {
-                        material = dirtMat;
-                        type = 'dirt';
-                    } else {
-                        material = stoneMat;
-                        type = 'stone';
-                    }
-                    
+                for (let y = surfaceY - 2; y <= surfaceY; y++) {
+                    const isTopLayer = (y === surfaceY);
+                    const blockType = isTopLayer ? 'grass' : 'dirt';
+                    const material = isTopLayer ? grassMaterials : dirtMat;
                     const block = new THREE.Mesh(boxGeo, material);
                     block.position.set(x, y, z);
-                    block.userData.type = type;
-                    block.receiveShadow = true;
-                    block.castShadow = true;
+                    block.userData.type = blockType;
                     scene.add(block);
                     worldBlocks.set(`${x},${y},${z}`, block);
                 }
 
-                // Lagos de agua
-                if (surfaceY <= 0 && Math.random() > 0.7) {
-                    for (let wy = surfaceY + 1; wy <= 0; wy++) {
-                        const water = new THREE.Mesh(boxGeo, waterMat);
-                        water.position.set(x, wy, z);
-                        water.userData.type = 'water';
-                        water.receiveShadow = true;
-                        scene.add(water);
-                        worldBlocks.set(`${x},${wy},${z}`, water);
-                        waterBlocks.push(water);
+                if (Math.random() > 0.985) { 
+                    const trunkHeight = 4 + Math.floor(Math.random() * 3);
+                    for(let i=1; i<=trunkHeight; i++) {
+                        const trunk = new THREE.Mesh(boxGeo, woodMat);
+                        trunk.position.set(x, surfaceY + i, z);
+                        trunk.userData.type = 'wood';
+                        scene.add(trunk);
+                        worldBlocks.set(`${x},${surfaceY + i},${z}`, trunk);
                     }
-                }
-
-                // Lagos de lava (en desierto)
-                if (biome === 'desert' && surfaceY <= 2 && Math.random() > 0.95) {
-                    const lava = new THREE.Mesh(boxGeo, lavaMat);
-                    lava.position.set(x, surfaceY + 1, z);
-                    lava.userData.type = 'lava';
-                    lava.receiveShadow = true;
-                    scene.add(lava);
-                    worldBlocks.set(`${x},${surfaceY + 1},${z}`, lava);
-                }
-
-                // Árboles
-                if (biome === 'plains' && Math.random() > 0.97) {
-                    generateTree(x, surfaceY, z);
-                }
-            }
-        }
-
-        function generateTree(x, y, z) {
-            const trunkHeight = 4 + Math.floor(Math.random() * 3);
-            // Tronco
-            for(let i=1; i<=trunkHeight; i++) {
-                const trunk = new THREE.Mesh(boxGeo, woodMat);
-                trunk.position.set(x, y + i, z);
-                trunk.userData.type = 'wood';
-                trunk.castShadow = true;
-                trunk.receiveShadow = true;
-                scene.add(trunk);
-                worldBlocks.set(`${x},${y + i},${z}`, trunk);
-            }
-            // Hojas
-            for(let ly = trunkHeight - 2; ly <= trunkHeight + 1; ly++) {
-                let radius = (ly === trunkHeight + 1) ? 1 : 2;
-                for(let lx = -radius; lx <= radius; lx++) {
-                    for(let lz = -radius; lz <= radius; lz++) {
-                        if (Math.abs(lx) === 2 && Math.abs(lz) === 2 && Math.random() > 0.3) continue;
-                        if (lx === 0 && lz === 0 && ly <= trunkHeight) continue;
-                        const leaf = new THREE.Mesh(boxGeo, leafMat);
-                        leaf.position.set(x+lx, y + ly, z+lz);
-                        leaf.userData.type = 'leaf';
-                        leaf.castShadow = true;
-                        leaf.receiveShadow = true;
-                        scene.add(leaf);
-                        worldBlocks.set(`${x+lx},${y + ly},${z+lz}`, leaf);
+                    for(let y = trunkHeight - 2; y <= trunkHeight + 1; y++) {
+                        let radius = (y === trunkHeight + 1) ? 1 : 2;
+                        for(let lx = -radius; lx <= radius; lx++) {
+                            for(let lz = -radius; lz <= radius; lz++) {
+                                if (Math.abs(lx) === radius && Math.abs(lz) === radius && (y === trunkHeight + 1 || y === trunkHeight - 2 || Math.random() > 0.5)) continue;
+                                if (lx === 0 && lz === 0 && y <= trunkHeight) continue;
+                                const leaf = new THREE.Mesh(boxGeo, leafMat);
+                                leaf.position.set(x+lx, surfaceY + y, z+lz);
+                                leaf.userData.type = 'leaf';
+                                scene.add(leaf);
+                                worldBlocks.set(`${x+lx},${surfaceY + y},${z+lz}`, leaf);
+                            }
+                        }
                     }
                 }
             }
         }
 
-        // --- 5. VACAS ANIMADAS ---
-        const cows = [];
-        
-        function createCow(x, y, z) {
-            const group = new THREE.Group();
-            
-            // Cuerpo
-            const bodyGeo = new THREE.BoxGeometry(1.4, 0.8, 0.9);
-            const bodyMat = new THREE.MeshStandardMaterial({color: 0x8B5E3C});
-            const body = new THREE.Mesh(bodyGeo, bodyMat);
-            body.position.y = 0.8;
-            body.castShadow = true;
-            body.receiveShadow = true;
-            group.add(body);
-            
-            // Cabeza
-            const headGeo = new THREE.BoxGeometry(0.7, 0.6, 0.6);
-            const head = new THREE.Mesh(headGeo, bodyMat);
-            head.position.set(0, 1.3, 0.6);
-            head.castShadow = true;
-            head.receiveShadow = true;
-            group.add(head);
-            
-            // Manchas blancas
-            const spotGeo = new THREE.BoxGeometry(0.4, 0.3, 0.1);
-            const spotMat = new THREE.MeshStandardMaterial({color: 0xFFFFFF});
-            const spot1 = new THREE.Mesh(spotGeo, spotMat);
-            spot1.position.set(0.4, 0.9, 0.46);
-            group.add(spot1);
-            const spot2 = spot1.clone();
-            spot2.position.set(-0.3, 1.0, 0.46);
-            group.add(spot2);
-            
-            // Patas
-            const legGeo = new THREE.BoxGeometry(0.3, 0.6, 0.3);
-            const legMat = new THREE.MeshStandardMaterial({color: 0x6B4226});
-            const positions = [[-0.4, 0.3, 0.3], [0.4, 0.3, 0.3], [-0.4, 0.3, -0.3], [0.4, 0.3, -0.3]];
-            const legs = [];
-            positions.forEach(pos => {
-                const leg = new THREE.Mesh(legGeo, legMat);
-                leg.position.set(pos[0], pos[1], pos[2]);
-                leg.castShadow = true;
-                leg.receiveShadow = true;
-                group.add(leg);
-                legs.push(leg);
-            });
-            
-            // Ojos
-            const eyeGeo = new THREE.BoxGeometry(0.15, 0.15, 0.05);
-            const eyeMat = new THREE.MeshStandardMaterial({color: 0x000000});
-            const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
-            eyeL.position.set(-0.2, 1.4, 0.91);
-            group.add(eyeL);
-            const eyeR = eyeL.clone();
-            eyeR.position.set(0.2, 1.4, 0.91);
-            group.add(eyeR);
-            
-            group.position.set(x, y, z);
-            group.userData = {
-                legs: legs,
-                walkTime: Math.random() * 100,
-                speed: 0.02 + Math.random() * 0.03,
-                direction: Math.random() * Math.PI * 2
-            };
-            
-            return group;
-        }
-
-        // Spawnear vacas
-        for(let i = 0; i < 8; i++) {
-            const angle = (i / 8) * Math.PI * 2;
-            const x = 15 + Math.cos(angle) * 10;
-            const z = 15 + Math.sin(angle) * 10;
-            const y = getTerrainHeight(Math.round(x), Math.round(z));
-            const cow = createCow(x, y, z);
-            scene.add(cow);
-            cows.push(cow);
-        }
-
-        // --- 6. SISTEMA DE INVENTARIO Y RECOLECCIÓN ---
+        // --- 6. INVENTARIO Y ESTADO ---
         let inventory = {
-            grass: 0, dirt: 0, wood: 0, leaf: 0, sand: 0, snow: 0, stone: 0
+            grass: 64,
+            dirt: 64,
+            wood: 0,
+            leaf: 0
         };
-        let selectedBlockType = 'grass';
-        let selectedSlot = 0;
         
-        const blockEmojis = {
-            grass: '🌿', dirt: '🟫', wood: '🪵', leaf: '🍃', sand: '🏖️', snow: '❄️', stone: '🪨'
-        };
-
-        function updateHandDisplay() {
-            const handBlock = document.getElementById('hand-block');
-            if (selectedBlockType && inventory[selectedBlockType] > 0) {
-                handBlock.textContent = blockEmojis[selectedBlockType] || '🌿';
+        let selectedBlockType = 'grass';
+        const handDisplay = document.getElementById('player-hand');
+        const slots = document.querySelectorAll('.slot');
+        
+        function updateCounts() {
+            document.getElementById('count-grass').textContent = inventory.grass;
+            document.getElementById('count-dirt').textContent = inventory.dirt;
+            document.getElementById('count-wood').textContent = inventory.wood;
+            document.getElementById('count-leaf').textContent = inventory.leaf;
+        }
+        
+        function updateHand() {
+            if (inventory[selectedBlockType] > 0) {
+                const emojis = { grass: '🌿', dirt: '🟫', wood: '🪵', leaf: '🍃' };
+                handDisplay.textContent = emojis[selectedBlockType];
             } else {
-                handBlock.textContent '✊';
+                handDisplay.textContent = '✊';
             }
         }
 
-        function updateInventoryUI() {
-            const slotsContainer = document.getElementById('inventory-slots');
-            slotsContainer.innerHTML = '';
-            
-            const items = ['grass', 'dirt', 'wood', 'leaf', 'sand', 'stone'];
-            items.forEach((item, index) => {
-                const slot = document.createElement('div');
-                slot.className = 'inv-slot' + (index === selectedSlot ? ' selected' : '');
-                slot.innerHTML = `${blockEmojis[item]}<br><small>${inventory[item]}</small>`;
-                slot.onclick = () => {
-                    selectedSlot = index;
-                    selectedBlockType = items[index];
-                    updateHandDisplay();
-                    updateInventoryUI();
-                    document.querySelectorAll('.inv-slot').forEach((s, i) => {
-                        if (i === index) s.classList.add('selected');
-                        else s.classList.remove('selected');
-                    });
-                };
-                slotsContainer.appendChild(slot);
+        slots.forEach(slot => {
+            slot.addEventListener('click', () => {
+                slots.forEach(s => s.classList.remove('seleccionado'));
+                slot.classList.add('seleccionado');
+                selectedBlockType = slot.dataset.block;
+                updateHand();
+            });
+        });
+
+        // Panel de inventario
+        const invPanel = document.getElementById('inventory-panel');
+        const invGrid = document.getElementById('inv-grid');
+        
+        function updateInvPanel() {
+            invGrid.innerHTML = '';
+            const items = ['grass', 'dirt', 'wood', 'leaf'];
+            const emojis = { grass: '🌿', dirt: '🟫', wood: '🪵', leaf: '🍃' };
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'inv-item';
+                div.innerHTML = `${emojis[item]}<br><small>${inventory[item]}</small>`;
+                invGrid.appendChild(div);
             });
         }
+
+        document.getElementById('inventory-btn').addEventListener('click', () => {
+            invPanel.classList.add('active');
+            updateInvPanel();
+        });
+        
+        document.getElementById('close-inv').addEventListener('click', () => {
+            invPanel.classList.remove('active');
+        });
 
         // Tala de árboles
-        function breakTree(startBlock) {
-            const pos = startBlock.position;
-            const woodBlocks = [];
-            const leafBlocks = [];
+        function chopTree(startBlock) {
+            const treeBlocks = [];
+            const visited = new Set();
             
-            // Encontrar todos los bloques conectados del árbol
-            function findConnected(block, visited = new Set()) {
+            function findTree(block) {
                 const key = `${block.position.x},${block.position.y},${block.position.z}`;
                 if (visited.has(key)) return;
                 visited.add(key);
                 
-                if (block.userData.type === 'wood') woodBlocks.push(block);
-                if (block.userData.type === 'leaf') leafBlocks.push(block);
-                
-                // Buscar adyacentes
-                const dirs = [[1,0,0], [-1,0,0], [0,1,0], [0,-1,0], [0,0,1], [0,0,-1]];
-                dirs.forEach(([dx, dy, dz]) => {
-                    const nKey = `${block.position.x+dx},${block.position.y+dy},${block.position.z+dz}`;
-                    const neighbor = worldBlocks.get(nKey);
-                    if (neighbor && (neighbor.userData.type === 'wood' || neighbor.userData.type === 'leaf')) {
-                        findConnected(neighbor, visited);
-                    }
-                });
+                if (block.userData.type === 'wood' || block.userData.type === 'leaf') {
+                    treeBlocks.push(block);
+                    
+                    const dirs = [[1,0,0], [-1,0,0], [0,1,0], [0,-1,0], [0,0,1], [0,0,-1]];
+                    dirs.forEach(([dx, dy, dz]) => {
+                        const nKey = `${block.position.x+dx},${block.position.y+dy},${block.position.z+dz}`;
+                        const neighbor = worldBlocks.get(nKey);
+                        if (neighbor) findTree(neighbor);
+                    });
+                }
             }
             
-            findConnected(startBlock);
+            findTree(startBlock);
             
-            // Eliminar bloques y agregar al inventario
-            [...woodBlocks, ...leafBlocks].forEach(block => {
+            treeBlocks.forEach(block => {
                 const type = block.userData.type;
                 if (inventory[type] !== undefined) {
                     inventory[type]++;
@@ -623,12 +383,12 @@
                 scene.remove(block);
             });
             
-            updateInventoryUI();
-            updateHandDisplay();
+            updateCounts();
+            updateHand();
         }
 
-        // --- 7. CONTROLES ---
-        camera.position.set(0, 8, 15);
+        // --- 7. CONTROLES E INTERACCIÓN ---
+        camera.position.set(0, 5, 8);
         let move = { f: false, b: false, l: false, r: false };
         let yaw = 0, pitch = 0, lastX = 0, lastY = 0;
         let isTap = false, touchStartTime = 0, touchStartPos = { x: 0, y: 0 };
@@ -641,7 +401,6 @@
         setupBtn('btn-up', 'f'); setupBtn('btn-down', 'b'); 
         setupBtn('btn-left', 'l'); setupBtn('btn-right', 'r');
 
-        // Raycaster para interacción
         const raycaster = new THREE.Raycaster();
         const pointer = new THREE.Vector2();
 
@@ -665,7 +424,7 @@
             
             yaw -= (touch.pageX - lastX) * 0.005;
             pitch -= (touch.pageY - lastY) * 0.005;
-            pitch = Math.max(-1.2, Math.min(1.2, pitch));
+            pitch = Math.max(-1.4, Math.min(1.4, pitch));
             lastX = touch.pageX;
             lastY = touch.pageY;
         });
@@ -685,9 +444,9 @@
                     const block = intersects[0].object;
                     
                     if (selectedBlockType === null) {
-                        // Romper bloque
+                        // Romper
                         if (block.userData.type === 'wood') {
-                            breakTree(block);
+                            chopTree(block);
                         } else {
                             const type = block.userData.type;
                             if (inventory[type] !== undefined) {
@@ -696,39 +455,26 @@
                             const key = `${block.position.x},${block.position.y},${block.position.z}`;
                             worldBlocks.delete(key);
                             scene.remove(block);
-                            updateInventoryUI();
-                            updateHandDisplay();
+                            updateCounts();
+                            updateHand();
                         }
                     } else if (inventory[selectedBlockType] > 0) {
-                        // Colocar bloque
+                        // Colocar
                         const normal = intersects[0].face.normal;
                         const placePos = block.position.clone().add(normal);
                         const key = `${placePos.x},${placePos.y},${placePos.z}`;
                         
                         if (!worldBlocks.has(key)) {
-                            let material;
-                            switch(selectedBlockType) {
-                                case 'grass': material = grassMaterials; break;
-                                case 'dirt': material = dirtMat; break;
-                                case 'wood': material = woodMat; break;
-                                case 'leaf': material = leafMat; break;
-                                case 'sand': material = sandMat; break;
-                                case 'snow': material = snowMat; break;
-                                case 'stone': material = stoneMat; break;
-                                default: material = dirtMat;
-                            }
-                            
+                            const material = getMaterialForBlock(selectedBlockType);
                             const newBlock = new THREE.Mesh(boxGeo, material);
                             newBlock.position.copy(placePos);
                             newBlock.userData.type = selectedBlockType;
-                            newBlock.castShadow = true;
-                            newBlock.receiveShadow = true;
                             scene.add(newBlock);
                             worldBlocks.set(key, newBlock);
                             
                             inventory[selectedBlockType]--;
-                            updateInventoryUI();
-                            updateHandDisplay();
+                            updateCounts();
+                            updateHand();
                         }
                     }
                 }
@@ -736,104 +482,51 @@
             isTap = false;
         });
 
-        // UI del inventario
-        document.getElementById('inventory-btn').addEventListener('click', () => {
-            document.getElementById('inventory-panel').classList.add('active');
-            updateInventoryUI();
-        });
-        
-        document.getElementById('close-inventory').addEventListener('click', () => {
-            document.getElementById('inventory-panel').classList.remove('active');
-        });
+        // --- 8. COLISIÓN SIMPLE ---
+        function canMoveTo(newX, newY, newZ) {
+            const checkX = Math.round(newX);
+            const checkY = Math.round(newY);
+            const checkZ = Math.round(newZ);
+            
+            for (let dy = -1; dy <= 1; dy++) {
+                const key = `${checkX},${checkY + dy},${checkZ}`;
+                if (worldBlocks.has(key)) return false;
+            }
+            return true;
+        }
 
-        // Dar items iniciales
-        inventory.grass = 64;
-        inventory.dirt = 64;
-        inventory.wood = 32;
-        updateHandDisplay();
-
-        // --- 8. ANIMACIÓN ---
+        // --- 9. ANIMACIÓN ---
         function animate() {
             requestAnimationFrame(animate);
             
             camera.rotation.order = "YXZ";
             camera.rotation.y = yaw;
             camera.rotation.x = pitch;
-            
-            // Movimiento
-            const speed = 0.2;
+
+            const speed = 0.15;
             let moveX = 0, moveZ = 0;
+            
             if (move.f) { moveX -= Math.sin(yaw) * speed; moveZ -= Math.cos(yaw) * speed; }
             if (move.b) { moveX += Math.sin(yaw) * speed; moveZ += Math.cos(yaw) * speed; }
             if (move.l) { moveX -= Math.cos(yaw) * speed; moveZ += Math.sin(yaw) * speed; }
             if (move.r) { moveX += Math.cos(yaw) * speed; moveZ -= Math.sin(yaw) * speed; }
             
-            if (moveX !== 0 || moveZ !== 0) {
+            if (moveX !== 0) {
                 const newX = camera.position.x + moveX;
-                const newZ = camera.position.z + moveZ;
-                
-                // Colisión simple
-                const checkX = Math.round(newX);
-                const checkZ = Math.round(newZ);
-                const playerY = Math.round(camera.position.y);
-                
-                let canMove = true;
-                for (let dy = -1; dy <= 1; dy++) {
-                    const key = `${checkX},${playerY + dy},${checkZ}`;
-                    if (worldBlocks.has(key)) {
-                        const block = worldBlocks.get(key);
-                        if (block.userData.type !== 'water') {
-                            canMove = false;
-                            break;
-                        }
-                    }
-                }
-                
-                if (canMove) {
+                if (canMoveTo(newX, camera.position.y, camera.position.z)) {
                     camera.position.x = newX;
+                }
+            }
+            if (moveZ !== 0) {
+                const newZ = camera.position.z + moveZ;
+                if (canMoveTo(camera.position.x, camera.position.y, newZ)) {
                     camera.position.z = newZ;
                 }
             }
-            
-            // Altura del terreno
+
             const groundY = getTerrainHeight(Math.round(camera.position.x), Math.round(camera.position.z));
             camera.position.y += (groundY + 1.8 - camera.position.y) * 0.15;
-            
-            // Animar vacas
-            cows.forEach(cow => {
-                const data = cow.userData;
-                data.walkTime += data.speed;
-                
-                // Movimiento
-                cow.position.x += Math.cos(data.direction) * data.speed * 0.5;
-                cow.position.z += Math.sin(data.direction) * data.speed * 0.5;
-                
-                // Cambiar dirección ocasionalmente
-                if (Math.random() < 0.01) {
-                    data.direction += (Math.random() - 0.5) * 1;
-                }
-                
-                // Mantener en el suelo
-                const cowY = getTerrainHeight(Math.round(cow.position.x), Math.round(cow.position.z));
-                cow.position.y = cowY;
-                
-                // Rotación
-                cow.rotation.y = data.direction;
-                
-                // Animación de patas
-                data.legs.forEach((leg, i) => {
-                    leg.rotation.x = Math.sin(data.walkTime * 5 + i) * 0.3;
-                });
-                
-                // Rebote del cuerpo
-                cow.children[0].position.y = 0.8 + Math.abs(Math.sin(data.walkTime * 10)) * 0.05;
-            });
-            
-            // Animar agua
-            waterBlocks.forEach(water => {
-                water.position.y += Math.sin(Date.now() * 0.002 + water.position.x) * 0.001;
-            });
-            
+
             renderer.render(scene, camera);
         }
         animate();
@@ -845,8 +538,9 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        // Inicializar UI
-        updateInventoryUI();
+        // Init
+        updateCounts();
+        updateHand();
     </script>
 </body>
 </html>
