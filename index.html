@@ -3,367 +3,174 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Mini Terraria HD Sprite</title>
+    <title>Terraria Pro Mobile</title>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; background-color: #4da6ff; touch-action: none; font-family: 'Courier New', monospace; user-select: none; -webkit-user-select: none; }
-        canvas { display: block; image-rendering: pixelated; /* Crucial para estética retro */ }
+        body { margin: 0; padding: 0; overflow: hidden; background: #5ba0d0; touch-action: none; }
+        canvas { display: block; image-rendering: pixelated; }
         
-        #controls { position: absolute; bottom: 30px; width: 100%; display: flex; justify-content: space-between; padding: 0 20px; box-sizing: border-box; pointer-events: none; z-index: 10; }
-        .btn-group { display: flex; gap: 15px; pointer-events: auto; }
-        .btn { background-color: rgba(255, 255, 255, 0.3); border: 2px solid #fff; border-radius: 15px; width: 65px; height: 65px; font-size: 30px; font-weight: bold; color: #fff; display: flex; justify-content: center; align-items: center; text-shadow: 1px 1px 2px #000; box-shadow: 0 4px rgba(0,0,0,0.3); }
-        .btn:active { background-color: rgba(255, 255, 255, 0.6); transform: translateY(2px); box-shadow: 0 2px rgba(0,0,0,0.3); }
-
-        #ui { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 5px; pointer-events: none; font-size: 14px;}
+        /* Controles estilo consola */
+        #ui-layer { position: absolute; bottom: 40px; width: 100%; display: flex; justify-content: space-between; padding: 0 30px; box-sizing: border-box; pointer-events: none; }
+        .joy-btn { 
+            width: 70px; height: 70px; background: rgba(0,0,0,0.4); 
+            border: 3px solid rgba(255,255,255,0.6); border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            pointer-events: auto; color: white; font-size: 30px; font-family: sans-serif;
+        }
+        .joy-btn:active { background: rgba(255,255,255,0.4); }
     </style>
 </head>
 <body>
 
-    <div id="ui">Cargando Sprites...</div>
-    <canvas id="gameCanvas"></canvas>
+<canvas id="game"></canvas>
 
-    <div id="controls">
-        <div class="btn-group">
-            <div class="btn" id="btnLeft">←</div>
-            <div class="btn" id="btnRight">→</div>
-        </div>
-        <div class="btn-group">
-            <div class="btn" id="btnJump">↑</div>
-        </div>
+<div id="ui-layer">
+    <div style="display: flex; gap: 20px;">
+        <div class="joy-btn" id="left">←</div>
+        <div class="joy-btn" id="right">→</div>
     </div>
+    <div class="joy-btn" id="jump">↑</div>
+</div>
 
-    <script>
-        // --- CONFIGURACIÓN INICIAL ---
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const ui = document.getElementById('ui');
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
 
-        // Ajuste de pantalla y DPI para iPhone
-        function resize() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            ctx.imageSmoothingEnabled = false; // Mantener pixeles nítidos
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+// --- ASSETS (Cargando imágenes de calidad) ---
+const assets = {
+    player: new Image(),
+    dirt: new Image(),
+    grass: new Image(),
+    tree: new Image()
+};
+
+// Usamos spritesheets de calidad
+assets.player.src = 'https://i.imgur.com/3pXInTh.png'; // Sprite tipo Terraria
+assets.dirt.src = 'https://i.imgur.com/O6S6O6p.png';   // Bloque tierra detallado
+assets.grass.src = 'https://i.imgur.com/YvVz7jH.png';  // Bloque pasto detallado
+assets.tree.src = 'https://i.imgur.com/9v6v9p3.png';   // Árbol profesional
+
+const TILE_SIZE = 32;
+const GRAVITY = 0.6;
+const WORLD_WIDTH = 100;
+let map = [];
+
+// Generar mundo más natural
+function initWorld() {
+    for(let y=0; y<30; y++) {
+        map[y] = [];
+        for(let x=0; x<WORLD_WIDTH; x++) {
+            if(y > 15) map[y][x] = 'dirt';
+            else if(y === 15) map[y][x] = 'grass';
+            else map[y][x] = null;
         }
-        window.addEventListener('resize', resize);
-        resize();
+    }
+    // Añadir árboles en posiciones fijas
+    for(let x=5; x<WORLD_WIDTH; x+=10) {
+        map[14][x] = 'tree'; 
+    }
+}
 
-        const tileSize = 32;
-        const mapWidth = 100;
-        const mapHeight = 40;
-        let map = [];
-        let assetsLoaded = false;
+const player = {
+    x: 100, y: 100, w: 28, h: 48,
+    vx: 0, vy: 0, 
+    speed: 4, jump: -12,
+    grounded: false, flip: false,
+    frame: 0, animTick: 0
+};
 
-        // --- GENERADOR DE SPRITES (Reemplaza archivos externos) ---
-        // Esto crea imágenes en memoria al iniciar
-        const sprites = {
-            player: new Image(),
-            tiles: new Image(),
-            tree: new Image()
-        };
+const cam = { x: 0, y: 0 };
+const input = { left: false, right: false, jump: false };
 
-        function generateSprites() {
-            // 1. Creación del TileSet (Suelo y Pasto detallado)
-            const tCanvas = document.createElement('canvas');
-            const tCtx = tCanvas.getContext('2d');
-            tCanvas.width = tileSize * 3; 
-            tCanvas.height = tileSize;
+// Controles táctiles
+const setupBtn = (id, key) => {
+    const btn = document.getElementById(id);
+    btn.ontouchstart = (e) => { e.preventDefault(); input[key] = true; };
+    btn.ontouchend = (e) => { e.preventDefault(); input[key] = false; };
+};
+setupBtn('left', 'left'); setupBtn('right', 'right'); setupBtn('jump', 'jump');
 
-            // Bloque 1: Tierra Profunda
-            tCtx.fillStyle = '#6d4c41'; tCtx.fillRect(0,0,tileSize,tileSize);
-            tCtx.fillStyle = '#5d4037'; // Detalles piedra
-            for(let i=0; i<8; i++) tCtx.fillRect(Math.random()*24, Math.random()*24, 4, 4);
+function update() {
+    if(input.left) { player.vx = -player.speed; player.flip = true; }
+    else if(input.right) { player.vx = player.speed; player.flip = false; }
+    else player.vx = 0;
 
-            // Bloque 2: Pasto Superficie (con borde orgánico)
-            tCtx.fillStyle = '#6d4c41'; tCtx.fillRect(tileSize,0,tileSize,tileSize); // Base tierra
-            tCtx.fillStyle = '#388e3c'; // Verde oscuro pasto
-            tCtx.fillRect(tileSize, 0, tileSize, 12);
-            tCtx.fillStyle = '#81c784'; // Verde claro brillo
-            for(let i=0; i<tileSize; i+=4) tCtx.fillRect(tileSize + i, Math.random()*6, 2, 6); // Hierba irregular arriba
+    player.vy += GRAVITY;
+    player.x += player.vx;
+    player.y += player.vy;
 
-            sprites.tiles.src = tCanvas.toDataURL();
+    // Colisión simple con el suelo (y=15)
+    let groundY = 15 * TILE_SIZE;
+    if(player.y + player.h > groundY) {
+        player.y = groundY - player.h;
+        player.vy = 0;
+        player.grounded = true;
+    } else {
+        player.grounded = false;
+    }
 
-            // 2. Creación del Árbol Detallado (Tronco rugoso y follaje orgánico)
-            const treeCanvas = document.createElement('canvas');
-            const treeCtx = treeCanvas.getContext('2d');
-            const tw = tileSize * 3; // Ancho copa
-            const th = tileSize * 6; // Alto total
-            treeCanvas.width = tw;
-            treeCanvas.height = th;
+    if(input.jump && player.grounded) {
+        player.vy = player.jump;
+        player.grounded = false;
+    }
 
-            // Tronco rugoso (marrón con textura)
-            const trunkWidth = 16;
-            const trunkX = (tw/2) - (trunkWidth/2);
-            treeCtx.fillStyle = '#5d4037'; // Marrón oscuro base
-            treeCtx.fillRect(trunkX, th - tileSize*4, trunkWidth, tileSize*4);
-            // Textura corteza
-            treeCtx.fillStyle = '#4e342e';
-            for(let i=0; i<20; i++) treeCtx.fillRect(trunkX + Math.random()*12, (th-tileSize*4) + Math.random()*tileSize*4, 2, 8);
-            // Raíces básicas
-            treeCtx.fillRect(trunkX - 4, th - 8, trunkWidth + 8, 8);
+    // Animación
+    if(player.vx !== 0) {
+        player.animTick++;
+        if(player.animTick > 5) {
+            player.frame = (player.frame + 1) % 4;
+            player.animTick = 0;
+        }
+    } else {
+        player.frame = 0;
+    }
 
-            // Follaje detallado (capas de círculos pixelados)
-            function drawFoliageCircle(x, y, r, colorbase, colorlight) {
-                treeCtx.fillStyle = colorbase;
-                treeCtx.beginPath(); treeCtx.arc(x, y, r, 0, Math.PI*2); treeCtx.fill();
-                // Brillo interior
-                treeCtx.fillStyle = colorlight;
-                treeCtx.beginPath(); treeCtx.arc(x - r/3, y - r/3, r/2, 0, Math.PI*2); treeCtx.fill();
-            }
-            
-            const centerX = tw/2;
-            const foliageY = th - tileSize*4;
-            // Capa trasera oscura
-            drawFoliageCircle(centerX, foliageY - 20, 35, '#1b5e20', '#2e7d32');
-            // Capas delanteras variadas
-            drawFoliageCircle(centerX - 25, foliageY, 25, '#2e7d32', '#4caf50');
-            drawFoliageCircle(centerX + 25, foliageY, 25, '#2e7d32', '#4caf50');
-            drawFoliageCircle(centerX, foliageY + 10, 30, '#388e3c', '#81c784');
+    // Cámara sigue al jugador
+    cam.x = player.x - canvas.width/2;
+    cam.y = player.y - canvas.height/2;
+}
 
-            sprites.tree.src = treeCanvas.toDataURL();
+function draw() {
+    ctx.clearRect(0,0,canvas.width, canvas.height);
+    ctx.save();
+    ctx.translate(-cam.x, -cam.y);
 
-            // 3. Creación del Sprite del Jugador (Hoja de sprites: Quieto, Camina1, Camina2)
-            const pCanvas = document.createElement('canvas');
-            const pCtx = pCanvas.getContext('2d');
-            const pw = 24; const ph = 34;
-            pCanvas.width = pw * 3; // 3 frames de animación
-            pCanvas.height = ph;
+    // Dibujar Mundo
+    for(let y=0; y<map.length; y++) {
+        for(let x=0; x<WORLD_WIDTH; x++) {
+            let tile = map[y][x];
+            let px = x * TILE_SIZE;
+            let py = y * TILE_SIZE;
 
-            function drawPlayerFrame(f, legOffset, armOffset) {
-                const ox = f * pw;
-                // Piel (Cabeza)
-                pCtx.fillStyle = '#ffccbc'; pCtx.fillRect(ox + 4, 0, 16, 12);
-                // Ojo (Estilo Terraria)
-                pCtx.fillStyle = '#000'; pCtx.fillRect(ox + 14, 4, 2, 4);
-                // Camisa Azul
-                pCtx.fillStyle = '#1976d2'; pCtx.fillRect(ox + 2, 12, 20, 12);
-                // Brazo
-                pCtx.fillStyle = '#ffccbc'; pCtx.fillRect(ox + 2 + armOffset, 14, 4, 10);
-                // Pantalones Marrones
-                pCtx.fillStyle = '#5d4037'; pCtx.fillRect(ox + 4, 24, 16, 5);
-                // Piernas
-                pCtx.fillStyle = '#ffccbc'; // Color piel bajo pantallon
-                pCtx.fillRect(ox + 5, 29 + legOffset, 6, 5); // Der
-                pCtx.fillRect(ox + 13, 29 - legOffset, 6, 5); // Izq
-            }
-
-            drawPlayerFrame(0, 0, 0); // Frame 0: Quieto
-            drawPlayerFrame(1, 2, 2); // Frame 1: Caminando A
-            drawPlayerFrame(2, -2, -2); // Frame 2: Caminando B
-
-            sprites.player.src = pCanvas.toDataURL();
-
-            // Verificar carga
-            let loadedCount = 0;
-            for(let s in sprites) {
-                sprites[s].onload = () => {
-                    loadedCount++;
-                    if(loadedCount === 3) {
-                        assetsLoaded = true;
-                        ui.innerText = "Terraria Mini HD - Usa Táctil";
-                    }
-                }
+            if(tile === 'dirt') ctx.drawImage(assets.dirt, px, py, TILE_SIZE, TILE_SIZE);
+            if(tile === 'grass') ctx.drawImage(assets.grass, px, py, TILE_SIZE, TILE_SIZE);
+            if(tile === 'tree') {
+                // Dibujar árbol grande (los árboles no son bloques, son adornos)
+                ctx.drawImage(assets.tree, px - 32, py - 128, 96, 160);
             }
         }
+    }
 
-        // --- LÓGICA DEL MUNDO Y JUEGO ---
-        function generateWorld() {
-            // Base del terreno
-            for (let y = 0; y < mapHeight; y++) {
-                map[y] = [];
-                for (let x = 0; x < mapWidth; x++) {
-                    if (y > 20) map[y][x] = 1; // Tierra profunda
-                    else if (y === 20) map[y][x] = 2; // Superficie Pasto
-                    else map[y][x] = 0; // Aire
-                }
-            }
+    // Dibujar Jugador
+    ctx.save();
+    ctx.translate(player.x + player.w/2, player.y + player.h/2);
+    if(player.flip) ctx.scale(-1, 1);
+    // Dibujamos una sección del sprite (animación)
+    ctx.drawImage(assets.player, 
+        player.frame * 32, 0, 32, 48, 
+        -player.w/2, -player.h/2, player.w, player.h
+    );
+    ctx.restore();
 
-            // Plantar árboles detallados espaciados
-            for (let x = 5; x < mapWidth - 5; x += 8 + Math.floor(Math.random()*5)) {
-                // El valor 3 en el mapa significará "Origen de Árbol" para dibujarlo
-                map[19][x] = 3; 
-            }
-        }
+    ctx.restore();
+    requestAnimationFrame(draw);
+}
 
-        const player = {
-            x: tileSize * 10, y: tileSize * 15,
-            width: 20, height: 32,
-            vx: 0, vy: 0,
-            speed: 4, jumpPower: -11,
-            grounded: false,
-            facing: 1, // 1 Derecha, -1 Izquierda
-            animFrame: 0, animTime: 0
-        };
-
-        const camera = { x: 0, y: 0 };
-        const keys = { left: false, right: false, up: false };
-
-        function checkCollision(x, y) {
-            let tx = Math.floor(x / tileSize);
-            let ty = Math.floor(y / tileSize);
-            if (tx < 0 || tx >= mapWidth || ty < 0 || ty >= mapHeight) return true;
-            let tile = map[ty][tx];
-            return tile === 1 || tile === 2; // Solo colisiona con tierra y pasto
-        }
-
-        function update() {
-            if(!assetsLoaded) return;
-
-            // Input y Física horizontal
-            if (keys.left) { player.vx = -player.speed; player.facing = -1; }
-            else if (keys.right) { player.vx = player.speed; player.facing = 1; }
-            else { player.vx *= 0.8; if(Math.abs(player.vx) < 0.1) player.vx = 0; }
-
-            player.x += player.vx;
-
-            // Colisión Horizontal Nítida
-            if (checkCollision(player.x, player.y + 2) || checkCollision(player.x, player.y + player.height - 2)) {
-                player.x = (Math.floor(player.x / tileSize) + 1) * tileSize;
-                player.vx = 0;
-            }
-            if (checkCollision(player.x + player.width, player.y + 2) || checkCollision(player.x + player.width, player.y + player.height - 2)) {
-                player.x = Math.floor((player.x + player.width) / tileSize) * tileSize - player.width;
-                player.vx = 0;
-            }
-
-            // Gravedad y Vertical
-            player.vy += 0.6;
-            player.y += player.vy;
-            player.grounded = false;
-
-            // Colisión Vertical Nítida
-            if (player.vy >= 0) { // Cayendo
-                if (checkCollision(player.x + 2, player.y + player.height) || checkCollision(player.x + player.width - 2, player.y + player.height)) {
-                    player.y = Math.floor((player.y + player.height) / tileSize) * tileSize - player.height;
-                    player.vy = 0;
-                    player.grounded = true;
-                }
-            } else { // Saltando
-                if (checkCollision(player.x + 2, player.y) || checkCollision(player.x + player.width - 2, player.y)) {
-                    player.y = (Math.floor(player.y / tileSize) + 1) * tileSize;
-                    player.vy = 0;
-                }
-            }
-
-            // Salto
-            if (keys.up && player.grounded) {
-                player.vy = player.jumpPower;
-                player.grounded = false;
-            }
-
-            // Animación del personaje
-            if(!player.grounded) {
-                player.animFrame = 1; // Frame de salto/caída
-            } else if (player.vx !== 0) {
-                player.animTime++;
-                if(player.animTime > 8) { // Velocidad animación
-                    player.animFrame = (player.animFrame === 1) ? 2 : 1;
-                    player.animTime = 0;
-                }
-            } else {
-                player.animFrame = 0; // Frame quieto
-            }
-
-            // Cámara suave
-            camera.x += (player.x - canvas.width / 2 - camera.x) * 0.1;
-            camera.y += (player.y - canvas.height / 2 - camera.y) * 0.1;
-            
-            // Límites cámara
-            camera.x = Math.max(0, Math.min(camera.x, mapWidth * tileSize - canvas.width));
-            camera.y = Math.max(0, Math.min(camera.y, mapHeight * tileSize - canvas.height));
-        }
-
-        function draw() {
-            if(!assetsLoaded) return;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            ctx.save();
-            ctx.translate(-Math.floor(camera.x), -Math.floor(camera.y));
-
-            // Rango de dibujado optimizado
-            let startCol = Math.floor(camera.x / tileSize) - 1;
-            let endCol = startCol + Math.ceil(canvas.width / tileSize) + 2;
-            let startRow = Math.floor(camera.y / tileSize) - 1;
-            let endRow = startRow + Math.ceil(canvas.height / tileSize) + 2;
-
-            // 1. Dibujar Árboles DETALLADOS (primero, para que estén detrás del suelo)
-            for (let y = startRow; y < endRow; y++) {
-                for (let x = startCol; x < endCol; x++) {
-                    if (y >= 0 && y < mapHeight && x >= 0 && x < mapWidth) {
-                        if(map[y][x] === 3) {
-                            // El árbol detallado mide 3x6 tiles. La base está en x,y.
-                            // Dibujamos el sprite enorme cargado
-                            const treeH = tileSize * 6;
-                            const treeW = tileSize * 3;
-                            ctx.drawImage(sprites.tree, (x * tileSize) - (treeW/2) + (tileSize/2), (y * tileSize) - treeH + tileSize);
-                        }
-                    }
-                }
-            }
-
-            // 2. Dibujar Bloques de Suelo (Tileset detallado)
-            for (let y = startRow; y < endRow; y++) {
-                for (let x = startCol; x < endCol; x++) {
-                    if (y >= 0 && y < mapHeight && x >= 0 && x < mapWidth) {
-                        let tile = map[y][x];
-                        if (tile === 1 || tile === 2) {
-                            // sx es el origen X en la imagen del tileset (0 para tierra, tileSize para pasto)
-                            let sx = (tile === 2) ? tileSize : 0;
-                            ctx.drawImage(sprites.tiles, sx, 0, tileSize, tileSize, x * tileSize, y * tileSize, tileSize, tileSize);
-                        }
-                    }
-                }
-            }
-
-            // 3. Dibujar JUGADOR SPRITE (con animación y dirección)
-            ctx.save();
-            // Ir al centro del jugador para poder rotar (hacer flip)
-            ctx.translate(Math.floor(player.x + player.width/2), Math.floor(player.y + player.height/2));
-            if(player.facing === -1) ctx.scale(-1, 1); // Voltear si mira a la izquierda
-
-            // Dibujar el frame correspondiente del sprite sheet
-            const pW = 24; const pH = 34; // Dimensiones sprite
-            ctx.drawImage(sprites.player, 
-                player.animFrame * pW, 0, pW, pH, // Source (recorte)
-                -pW/2, -pH/2, pW, pH // Destination (centrado)
-            );
-            ctx.restore();
-
-            ctx.restore();
-        }
-
-        function loop() {
-            update();
-            draw();
-            requestAnimationFrame(loop);
-        }
-
-        // --- CONTROLES TÁCTILES iPHONE (Mejorados) ---
-        function addTouchEvents(id, key) {
-            const el = document.getElementById(id);
-            el.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = true; });
-            el.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = false; });
-            el.addEventListener('touchcancel', (e) => { e.preventDefault(); keys[key] = false; });
-        }
-        addTouchEvents('btnLeft', 'left');
-        addTouchEvents('btnRight', 'right');
-        addTouchEvents('btnJump', 'up');
-
-        // Soporte Teclado PC para pruebas
-        window.addEventListener('keydown', (e) => {
-            if(e.key === 'ArrowLeft') keys.left = true;
-            if(e.key === 'ArrowRight') keys.right = true;
-            if(e.key === 'ArrowUp' || e.key === ' ') keys.up = true;
-        });
-        window.addEventListener('keyup', (e) => {
-            if(e.key === 'ArrowLeft') keys.left = false;
-            if(e.key === 'ArrowRight') keys.right = false;
-            if(e.key === 'ArrowUp' || e.key === ' ') keys.up = false;
-        });
-
-        // INICIO
-        generateSprites(); // Primero crear imágenes
-        generateWorld();
-        loop();
-
-    </script>
+initWorld();
+setInterval(update, 1000/60);
+draw();
+</script>
 </body>
 </html>
